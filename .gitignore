@@ -1,0 +1,13 @@
+.github
+.husky
+/node_modules/
+/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Coverage reports
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated files
+*.d.ts
+*.map
+
+# Documentation
+docs/
+
+# Examples generated content
+examples/generated/
+
+# Package files
+*.tgz
+*.tar.gz
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.test
+
+# Cache directories
+.cache/
+.parcel-cache/
+
+# TypeScript cache
+*.tsbuildinfo

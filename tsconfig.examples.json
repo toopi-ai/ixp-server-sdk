@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./examples-dist",
+    "rootDir": "./examples",
+    "declaration": false,
+    "declarationMap": false,
+    "module": "CommonJS",
+    "target": "ES2020",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": "."
+  },
+  "include": [
+    "examples/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "examples-dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}
