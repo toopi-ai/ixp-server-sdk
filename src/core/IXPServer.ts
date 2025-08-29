@@ -11,13 +11,13 @@ import type {
   CrawlerContentOptions,
   HealthCheckResult,
   MetricsData
-} from '../types/index.js';
-import { IntentRegistry } from './IntentRegistry.js';
-import { ComponentRegistry } from './ComponentRegistry.js';
-import { IntentResolver } from './IntentResolver.js';
-import { IXPError, ErrorFactory, toErrorResponse, getErrorStatusCode } from '../utils/errors.js';
-import { Logger, createLogger } from '../utils/logger.js';
-import { MetricsService } from '../utils/metrics.js';
+} from '../types/index';
+import { IntentRegistry } from './IntentRegistry';
+import { ComponentRegistry } from './ComponentRegistry';
+import { IntentResolver } from './IntentResolver';
+import { IXPError, ErrorFactory, toErrorResponse, getErrorStatusCode } from '../utils/errors';
+import { Logger, createLogger } from '../utils/logger';
+import { MetricsService } from '../utils/metrics';
 
 /**
  * Main IXP Server class that orchestrates all components

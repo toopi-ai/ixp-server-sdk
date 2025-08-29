@@ -10,22 +10,9 @@
  * - Error handling and graceful shutdown
  */
 
-import { 
-  createIXPServer, 
-  type IntentDefinition, 
-  type ComponentDefinition 
-} from 'IXP';
-import { 
-  createSwaggerPlugin, 
-  createHealthMonitoringPlugin, 
-  createMetricsPlugin 
-} from '../dist/plugins/index.js';
-import { 
-  createRateLimitMiddleware, 
-  createRequestIdMiddleware,
-  createValidationMiddleware,
-  createOriginValidationMiddleware
-} from '../dist/middleware/index.js';
+import { createIXPServer, type IntentDefinition, type ComponentDefinition } from '../dist/index.js';
+import { createSwaggerPlugin, createHealthMonitoringPlugin, createMetricsPlugin } from '../dist/plugins/index.js';
+import { createRateLimitMiddleware, createRequestIdMiddleware, createValidationMiddleware, createOriginValidationMiddleware } from '../dist/middleware/index.js';
 
 // Define intents with proper TypeScript typing
 const intents: IntentDefinition[] = [
@@ -171,7 +158,7 @@ const server = createIXPServer({
         }
       ];
       
-      fetch('wooc/api?pamas')
+      // Example: fetch('woocommerce/api?params=value')
 
       return {
         contents: mockProducts,

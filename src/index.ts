@@ -19,7 +19,7 @@
  */
 
 import express from 'express';
-import { IXPServer } from './core/IXPServer.js';
+import { IXPServer } from './core/IXPServer';
 import type {
   IXPServerConfig,
   IXPServerInstance,
@@ -29,24 +29,24 @@ import type {
   IXPPlugin,
   IXPMiddleware,
 } from './types/index';
-import { IntentRegistry } from './core/IntentRegistry.js';
-import { ComponentRegistry } from './core/ComponentRegistry.js';
-import { IntentResolver } from './core/IntentResolver.js';
-import { IXPError, ErrorFactory } from './utils/errors.js';
-import { Logger } from './utils/logger.js';
-import { MetricsService } from './utils/metrics.js';
+import { IntentRegistry } from './core/IntentRegistry';
+import { ComponentRegistry } from './core/ComponentRegistry';
+import { IntentResolver } from './core/IntentResolver';
+import { IXPError, ErrorFactory } from './utils/errors';
+import { Logger } from './utils/logger';
+import { MetricsService } from './utils/metrics';
 import {
   createRateLimitMiddleware,
   createValidationMiddleware,
   createOriginValidationMiddleware,
   createTimeoutMiddleware,
   createRequestIdMiddleware
-} from './middleware/index.js';
+} from './middleware/index';
 import {
   createSwaggerPlugin,
   createHealthMonitoringPlugin,
   createMetricsPlugin
-} from './plugins/index.js';
+} from './plugins/index';
 
 /**
  * Create a new IXP Server instance with the given configuration
@@ -309,23 +309,44 @@ export {
   IntentRegistry,
   ComponentRegistry,
   IntentResolver
-} from './core/index.js';
+} from './core/index';
 
 export {
   IXPError,
   ErrorFactory,
   ErrorCodes
-} from './utils/errors.js';
+} from './utils/errors';
 
 export {
   Logger,
   createLogger,
   defaultLogger
-} from './utils/logger.js';
+} from './utils/logger';
 
 export {
   MetricsService
-} from './utils/metrics.js';
+} from './utils/metrics';
+
+// Re-export plugins
+export {
+  createSwaggerPlugin,
+  createHealthMonitoringPlugin as createHealthPlugin,
+  createMetricsPlugin,
+  PluginFactory
+} from './plugins/index';
+
+// Re-export middleware
+export {
+  createRateLimitMiddleware,
+  createValidationMiddleware,
+  createOriginValidationMiddleware,
+  createTimeoutMiddleware,
+  createRequestIdMiddleware,
+  createSecurityHeadersMiddleware,
+  createComponentAccessMiddleware,
+  createLoggingMiddleware,
+  MiddlewareFactory
+} from './middleware/index';
 
 // Re-export all types
 export type {
@@ -356,5 +377,5 @@ export type {
 } from './types/index';
 
 // Package information
-export const version = '1.0.0';
+export const version = '1.0.2';
 export const name = 'ixp-server';

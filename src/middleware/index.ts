@@ -4,7 +4,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import type { IXPMiddleware } from '../types/index';
-import { ErrorFactory } from '../utils/errors.js';
+import { ErrorFactory } from '../utils/errors';
 
 /**
  * Rate limiting middleware factory

@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Basic IXP Server Example
  *
@@ -10,10 +9,9 @@
  * - Custom data providers
  * - Error handling and graceful shutdown
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-const index_js_1 = require("../dist/index.js");
-const index_js_2 = require("../dist/plugins/index.js");
-const index_js_3 = require("../dist/middleware/index.js");
+import { createIXPServer } from '../dist/index.js';
+import { createSwaggerPlugin, createHealthMonitoringPlugin, createMetricsPlugin } from '../dist/plugins/index.js';
+import { createRateLimitMiddleware, createRequestIdMiddleware, createValidationMiddleware, createOriginValidationMiddleware } from '../dist/middleware/index.js';
 // Define intents with proper TypeScript typing
 const intents = [
     {
@@ -117,12 +115,12 @@ const components = {
 };
 // Create the server with comprehensive configuration
 // This demonstrates all major configuration options available in the SDK
-const server = (0, index_js_1.createIXPServer)({
+const server = createIXPServer({
     intents,
     components,
     port: 3001,
     cors: {
-        origins: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+        origins: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:5174'],
         credentials: true
     },
     logging: {
@@ -155,6 +153,7 @@ const server = (0, index_js_1.createIXPServer)({
                     lastUpdated: new Date().toISOString()
                 }
             ];
+            // Example: fetch('woocommerce/api?params=value')
             return {
                 contents: mockProducts,
                 pagination: {
@@ -177,12 +176,12 @@ const server = (0, index_js_1.createIXPServer)({
     }
 });
 // Add plugins using the SDK plugin functions
-server.addPlugin((0, index_js_2.createSwaggerPlugin)({
+server.addPlugin(createSwaggerPlugin({
     title: 'Basic IXP Server API',
     version: '1.0.0',
     description: 'A basic example of an IXP server using the SDK'
 }));
-server.addPlugin((0, index_js_2.createHealthMonitoringPlugin)({
+server.addPlugin(createHealthMonitoringPlugin({
     checks: {
         database: async () => ({
             status: 'pass',
@@ -194,22 +193,22 @@ server.addPlugin((0, index_js_2.createHealthMonitoringPlugin)({
         })
     }
 }));
-server.addPlugin((0, index_js_2.createMetricsPlugin)({
+server.addPlugin(createMetricsPlugin({
     format: 'json',
     includeSystemMetrics: true
 }));
 // Add middleware using the SDK middleware functions
-server.addMiddleware((0, index_js_3.createRateLimitMiddleware)({
+server.addMiddleware(createRateLimitMiddleware({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100 // limit each IP to 100 requests per windowMs
 }));
-server.addMiddleware((0, index_js_3.createRequestIdMiddleware)({}));
-server.addMiddleware((0, index_js_3.createValidationMiddleware)({
+server.addMiddleware(createRequestIdMiddleware({}));
+server.addMiddleware(createValidationMiddleware({
     maxBodySize: '10mb',
     allowedContentTypes: ['application/json'],
     requireContentType: true
 }));
-server.addMiddleware((0, index_js_3.createOriginValidationMiddleware)({
+server.addMiddleware(createOriginValidationMiddleware({
     allowedOrigins: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
     allowCredentials: true
 }));

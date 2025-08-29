@@ -1,7 +1,8 @@
 {
   "name": "ixp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A comprehensive SDK for building Intent Exchange Protocol (IXP) servers with ease",
+
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -18,8 +19,8 @@
     }
   },
   "bin": {
-    "ixp-server": "./dist/cli.js",
-    "create-ixp-server": "./dist/cli.js"
+    "ixp-server": "./dist/cli/index.js",
+    "create-ixp-server": "./dist/cli/index.js"
   },
   "files": [
     "dist",

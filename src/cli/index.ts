@@ -11,10 +11,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// __dirname is available in CommonJS
 
 const program = new Command();
 
@@ -339,17 +336,17 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
  */
 function generateServerCode(config: any, isTypeScript: boolean): string {
   const imports = isTypeScript 
-    ? 'import { createIXPServer, PluginFactory, MiddlewareFactory } from \'ixp-server\';'
-    : 'const { createIXPServer, PluginFactory, MiddlewareFactory } = require(\'ixp-server\');';
+    ? 'import { createIXPServer, createSwaggerPlugin, createHealthPlugin, createMetricsPlugin, createRateLimitMiddleware, createLoggingMiddleware } from \'ixp-server\';'
+    : 'const { createIXPServer, createSwaggerPlugin, createHealthPlugin, createMetricsPlugin, createRateLimitMiddleware, createLoggingMiddleware } = require(\'ixp-server\');';
   
   const plugins = config.features.map((feature: string) => {
     switch (feature) {
       case 'swagger':
-        return `  server.addPlugin(PluginFactory.swagger({ title: '${path.basename(process.cwd())} API' }));`;
+        return `  server.addPlugin(createSwaggerPlugin({ title: '${path.basename(process.cwd())} API' }));`;
       case 'health':
-        return '  server.addPlugin(PluginFactory.healthMonitoring({}));';
+        return '  server.addPlugin(createHealthPlugin({}));';
       case 'metrics':
-        return '  server.addPlugin(PluginFactory.metrics({}));';
+        return '  server.addPlugin(createMetricsPlugin({}));';
       default:
         return '';
     }
@@ -358,9 +355,9 @@ function generateServerCode(config: any, isTypeScript: boolean): string {
   const middleware = config.features.map((feature: string) => {
     switch (feature) {
       case 'rateLimit':
-        return '  server.addMiddleware(MiddlewareFactory.rateLimit({ max: 100, windowMs: 15 * 60 * 1000 }));';
+        return '  server.addMiddleware(createRateLimitMiddleware({ max: 100, windowMs: 15 * 60 * 1000 }));';
       case 'logging':
-        return '  server.addMiddleware(MiddlewareFactory.logging({ logLevel: \'info\' }));';
+        return '  server.addMiddleware(createLoggingMiddleware({ logLevel: \'info\' }));';
       default:
         return '';
     }

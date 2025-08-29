@@ -319,4 +319,225 @@ describe('IXP Server SDK', () => {
       expect(testPlugin.install).toHaveBeenCalledWith(server);
     });
   });
+
+  describe('Render Endpoint Integration', () => {
+    let server: any;
+    let request: any;
+    
+    beforeEach(async () => {
+      const intents = [
+        {
+          name: 'show_welcome',
+          description: 'Display welcome message',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              theme: { type: 'string', enum: ['light', 'dark'] }
+            },
+            required: ['name']
+          },
+          component: 'WelcomeComponent',
+          version: '1.0.0',
+          crawlable: true
+        },
+        {
+          name: 'show_products',
+          description: 'Display product list',
+          parameters: {
+            type: 'object',
+            properties: {
+              category: { type: 'string' },
+              limit: { type: 'number', minimum: 1, maximum: 50 }
+            }
+          },
+          component: 'ProductGrid',
+          version: '1.0.0'
+        }
+      ];
+      
+      const components = {
+        WelcomeComponent: {
+          name: 'WelcomeComponent',
+          framework: 'react',
+          remoteUrl: 'http://localhost:5173/WelcomeComponent.js',
+          exportName: 'WelcomeComponent',
+          propsSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              theme: { type: 'string' }
+            },
+            required: ['name']
+          },
+          version: '1.0.0',
+          allowedOrigins: ['*'],
+          bundleSize: '5KB',
+          performance: { tti: '0.2s', bundleSizeGzipped: '2KB' },
+          securityPolicy: { allowEval: false, maxBundleSize: '50KB', sandboxed: true }
+        },
+        ProductGrid: {
+          name: 'ProductGrid',
+          framework: 'react',
+          remoteUrl: 'http://localhost:5173/ProductGrid.js',
+          exportName: 'ProductGrid',
+          propsSchema: {
+            type: 'object',
+            properties: {
+              category: { type: 'string' },
+              limit: { type: 'number' }
+            }
+          },
+          version: '1.0.0',
+          allowedOrigins: ['*'],
+          bundleSize: '25KB',
+          performance: { tti: '0.5s', bundleSizeGzipped: '8KB' },
+          securityPolicy: { allowEval: false, maxBundleSize: '100KB', sandboxed: true }
+        }
+      };
+      
+      server = createIXPServer({
+        intents,
+        components,
+        dataProvider: {
+          async resolveIntentData(intent, context) {
+            if (intent.name === 'show_products') {
+              return {
+                totalProducts: 100,
+                availableCategories: ['electronics', 'clothing', 'books']
+              };
+            }
+            return {};
+          }
+        }
+      });
+      
+      await server.initialize();
+      
+      // Mock request object
+      request = {
+        body: {},
+        get: jest.fn().mockReturnValue(null),
+        method: 'POST',
+        path: '/render'
+      };
+    });
+    
+    test('should render component for valid intent', async () => {
+      request.body = {
+        intent: {
+          name: 'show_welcome',
+          parameters: { name: 'World', theme: 'light' }
+        }
+      };
+      
+      const result = await server.intentResolver.resolveIntent(request.body.intent);
+      
+      expect(result).toBeDefined();
+      expect(result.record.moduleUrl).toBe('http://localhost:5173/WelcomeComponent.js');
+      expect(result.record.exportName).toBe('WelcomeComponent');
+      expect(result.record.props.name).toBe('World');
+      expect(result.record.props.theme).toBe('light');
+      expect(result.component.name).toBe('WelcomeComponent');
+      expect(result.ttl).toBeGreaterThan(0);
+    });
+    
+    test('should include data provider data in render result', async () => {
+      request.body = {
+        intent: {
+          name: 'show_products',
+          parameters: { category: 'electronics', limit: 10 }
+        }
+      };
+      
+      const result = await server.intentResolver.resolveIntent(request.body.intent);
+      
+      expect(result).toBeDefined();
+      expect(result.record.props.category).toBe('electronics');
+      expect(result.record.props.limit).toBe(10);
+      expect(result.record.props.totalProducts).toBe(100);
+      expect(result.record.props.availableCategories).toEqual(['electronics', 'clothing', 'books']);
+    });
+    
+    test('should validate intent parameters', async () => {
+      request.body = {
+        intent: {
+          name: 'show_welcome',
+          parameters: { theme: 'light' } // missing required 'name'
+        }
+      };
+      
+      await expect(server.intentResolver.resolveIntent(request.body.intent))
+        .rejects.toThrow('Parameter validation failed');
+    });
+    
+    test('should validate enum parameters', async () => {
+      request.body = {
+        intent: {
+          name: 'show_welcome',
+          parameters: { name: 'World', theme: 'invalid' } // invalid enum value
+        }
+      };
+      
+      await expect(server.intentResolver.resolveIntent(request.body.intent))
+        .rejects.toThrow('Parameter validation failed');
+    });
+    
+    test('should validate number constraints', async () => {
+      request.body = {
+        intent: {
+          name: 'show_products',
+          parameters: { limit: 100 } // exceeds maximum of 50
+        }
+      };
+      
+      await expect(server.intentResolver.resolveIntent(request.body.intent))
+        .rejects.toThrow('Parameter validation failed');
+    });
+    
+    test('should handle missing intent', async () => {
+      request.body = {
+        intent: {
+          name: 'unknown_intent',
+          parameters: {}
+        }
+      };
+      
+      await expect(server.intentResolver.resolveIntent(request.body.intent))
+        .rejects.toThrow("Intent 'unknown_intent' not found");
+    });
+    
+    test('should calculate appropriate TTL', async () => {
+      // Test crawlable intent (should have higher TTL)
+      const crawlableResult = await server.intentResolver.resolveIntent({
+        name: 'show_welcome',
+        parameters: { name: 'World' }
+      });
+      
+      // Test non-crawlable intent
+      const nonCrawlableResult = await server.intentResolver.resolveIntent({
+        name: 'show_products',
+        parameters: {}
+      });
+      
+      expect(crawlableResult.ttl).toBeGreaterThanOrEqual(600); // At least 10 minutes for crawlable
+      expect(nonCrawlableResult.ttl).toBeGreaterThanOrEqual(300); // At least 5 minutes default
+    });
+    
+    test('should merge options with resolved props', async () => {
+      const options = {
+        customProp: 'customValue',
+        metadata: { source: 'test' }
+      };
+      
+      const result = await server.intentResolver.resolveIntent({
+        name: 'show_welcome',
+        parameters: { name: 'World' }
+      }, options);
+      
+      expect(result.record.props.name).toBe('World');
+      expect(result.record.props.customProp).toBe('customValue');
+      expect(result.record.props.metadata).toEqual({ source: 'test' });
+    });
+  });
 });

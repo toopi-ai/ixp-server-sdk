@@ -9,7 +9,7 @@ import type {
   ComponentRegistry,
   DataProvider
 } from '../types/index';
-import { IXPError } from '../utils/errors.js';
+import { IXPError } from '../utils/errors';
 
 /**
  * Intent Resolver - Handles intent resolution and parameter validation
