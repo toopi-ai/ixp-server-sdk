@@ -642,358 +642,38 @@ export class IXPService {
 }
 ```
 
-### Angular Component
-
-```typescript
-// components/chat/chat.component.ts
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
-import { IXPService } from '../../services/ixp.service';
-
-interface Message {
-  id: string;
-  type: 'user' | 'assistant';
-  content: string;
-  components?: any[];
-  timestamp: Date;
-}
-
-@Component({
-  selector: 'app-chat',
-  templateUrl: './chat.component.html',
-  styleUrls: ['./chat.component.scss']
-})
-export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
-  @ViewChild('messagesContainer') messagesContainer!: ElementRef;
-  
-  messages: Message[] = [];
-  input = '';
-  loading = false;
-  error: string | null = null;
-  
-  private destroy$ = new Subject<void>();
-  private shouldScrollToBottom = false;
-  
-  constructor(private ixpService: IXPService) {}
-  
-  ngOnInit(): void {
-    this.ixpService.state$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(state => {
-        this.loading = state.loading;
-        this.error = state.error;
-      });
-    
-    // Add welcome message
-    this.addMessage({
-      id: '0',
-      type: 'assistant',
-      content: 'Hello! How can I help you today?',
-      timestamp: new Date()
-    });
-  }
-  
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-  
-  ngAfterViewChecked(): void {
-    if (this.shouldScrollToBottom) {
-      this.scrollToBottom();
-      this.shouldScrollToBottom = false;
-    }
-  }
-  
-  sendMessage(): void {
-    if (!this.input.trim() || this.loading) return;
-    
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: this.input,
-      timestamp: new Date()
-    };
-    
-    this.addMessage(userMessage);
-    const messageText = this.input;
-    this.input = '';
-    
-    this.ixpService.sendIntent('chat', { message: messageText })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          const assistantMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'assistant',
-            content: response.message || 'I received your message.',
-            components: response.components,
-            timestamp: new Date()
-          };
-          
-          this.addMessage(assistantMessage);
-        },
-        error: (error) => {
-          const errorMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'assistant',
-            content: 'Sorry, I encountered an error. Please try again.',
-            timestamp: new Date()
-          };
-          
-          this.addMessage(errorMessage);
-        }
-      });
-  }
-  
-  handleComponentAction(action: string, data: any): void {
-    this.ixpService.sendIntent('handle-action', { action, data })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.message) {
-            const assistantMessage: Message = {
-              id: Date.now().toString(),
-              type: 'assistant',
-              content: response.message,
-              components: response.components,
-              timestamp: new Date()
-            };
-            
-            this.addMessage(assistantMessage);
-          }
-        },
-        error: (error) => {
-          console.error('Action error:', error);
-        }
-      });
-  }
-  
-  private addMessage(message: Message): void {
-    this.messages.push(message);
-    this.shouldScrollToBottom = true;
-  }
-  
-  private scrollToBottom(): void {
-    if (this.messagesContainer) {
-      const element = this.messagesContainer.nativeElement;
-      element.scrollTop = element.scrollHeight;
-    }
-  }
-}
-```
-
-## Next.js Integration
-
-### API Route Handler
-
-```typescript
-// pages/api/ixp/[...intent].ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import { createIXPServer } from 'ixp-server';
-import { chatIntent } from '../../../lib/intents/chat';
-import { productSearchIntent } from '../../../lib/intents/product-search';
-
-// Create IXP server instance
-const ixpServer = createIXPServer({
-  name: 'Next.js IXP Integration',
-  version: '1.0.0'
-});
-
-// Register intents
-ixpServer.registerIntent(chatIntent);
-ixpServer.registerIntent(productSearchIntent);
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-  
-  try {
-    const { intent } = req.query;
-    const intentName = Array.isArray(intent) ? intent[0] : intent;
-    
-    if (!intentName) {
-      return res.status(400).json({ error: 'Intent name required' });
-    }
-    
-    const response = await ixpServer.processIntent(intentName, req.body, {
-      request: req,
-      response: res,
-      user: req.session?.user // Assuming session middleware
-    });
-    
-    res.status(200).json(response);
-  } catch (error) {
-    console.error('IXP API error:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-```
-
-### React Hook for Next.js
-
-```typescript
-// hooks/useIXP.ts
-import { useState, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
-
-interface IXPResponse {
-  success: boolean;
-  message?: string;
-  data?: any;
-  components?: any[];
-  error?: string;
-}
-
-export function useIXP() {
-  const { data: session } = useSession();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  const sendIntent = useCallback(async (
-    intent: string,
-    parameters?: any
-  ): Promise<IXPResponse> => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch(`/api/ixp/${intent}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.accessToken && {
-            'Authorization': `Bearer ${session.accessToken}`
-          })
-        },
-        body: JSON.stringify(parameters || {})
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [session]);
-  
-  return {
-    sendIntent,
-    loading,
-    error,
-    isAuthenticated: !!session
-  };
-}
-```
-
-### Server-Side Rendering with IXP
-
-```typescript
-// pages/products/[category].tsx
-import { GetServerSideProps } from 'next';
-import { IXPServer } from 'ixp-server';
-import ProductGrid from '../../components/ProductGrid';
-
-interface ProductPageProps {
-  products: any[];
-  category: string;
-  ixpResponse: any;
-}
-
-export default function ProductPage({ products, category, ixpResponse }: ProductPageProps) {
-  return (
-    <div>
-      <h1>Products in {category}</h1>
-      <ProductGrid products={products} />
-      
-      {ixpResponse?.components && (
-        <div className="ixp-components">
-          {ixpResponse.components.map((component: any, index: number) => (
-            <IXPComponentRenderer key={index} component={component} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  const { category } = context.params!;
-  
-  try {
-    // Initialize IXP server
-    const ixpServer = new IXPServer({
-      // Server configuration
-    });
-    
-    // Process product search intent on server
-    const ixpResponse = await ixpServer.processIntent('product-search', {
-      category: category as string,
-      limit: 20
-    });
-    
-    return {
-      props: {
-        products: ixpResponse.data?.results || [],
-        category: category as string,
-        ixpResponse
-      }
-    };
-  } catch (error) {
-    console.error('SSR IXP error:', error);
-    
-    return {
-      props: {
-        products: [],
-        category: category as string,
-        ixpResponse: null
-      }
-    };
-  }
-};
-```
-
 ## Express.js Integration
 
-### Express Middleware
+### IXP Middleware
 
 ```typescript
 // middleware/ixp.ts
 import { Request, Response, NextFunction } from 'express';
-import { IXPServer } from 'ixp-server';
+import { IXPServer } from '@toopi/ixp-server-sdk';
 
-interface IXPRequest extends Request {
-  ixp?: IXPServer;
+// Extend Express Request interface
+declare global {
+  namespace Express {
+    interface Request {
+      ixp?: IXPServer;
+    }
+  }
 }
 
 export function createIXPMiddleware(ixpServer: IXPServer) {
-  return (req: IXPRequest, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     req.ixp = ixpServer;
     next();
   };
 }
 
 export function ixpHandler() {
-  return async (req: IXPRequest, res: Response) => {
+  return async (req: Request, res: Response) => {
     try {
       const { intent, parameters } = req.body;
+      const intentName = req.params.intent || intent;
       
-      if (!intent) {
+      if (!intentName) {
         return res.status(400).json({
           error: 'Intent name is required'
         });
@@ -1005,13 +685,16 @@ export function ixpHandler() {
         });
       }
       
-      const response = await req.ixp.processIntent(intent, parameters, {
-        request: req,
-        response: res,
-        user: req.user // Assuming authentication middleware
-      });
+      const response = await req.ixp.render(intentName, parameters || {});
       
-      res.json(response);
+      res.json({
+        success: true,
+        component: response,
+        metadata: {
+          intent: intentName,
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch (error) {
       console.error('IXP handler error:', error);
       
@@ -1031,11 +714,9 @@ export function ixpHandler() {
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { createIXPServer } from 'ixp-server';
+import { IXPServer } from '@toopi/ixp-server-sdk';
 import { createIXPMiddleware, ixpHandler } from './middleware/ixp';
 import { authMiddleware } from './middleware/auth';
-import { chatIntent } from './intents/chat';
-import { productSearchIntent } from './intents/product-search';
 
 const app = express();
 
@@ -1049,17 +730,76 @@ app.use(express.urlencoded({ extended: true }));
 app.use(authMiddleware);
 
 // Create and configure IXP server
-const ixpServer = createIXPServer({
-  name: 'Express IXP Integration',
-  version: '1.0.0',
-  logging: {
-    level: 'info'
-  }
+const ixpServer = new IXPServer({
+  port: 3001, // Different port for IXP server
+  cors: { origin: '*' }
 });
 
 // Register intents
-ixpServer.registerIntent(chatIntent);
-ixpServer.registerIntent(productSearchIntent);
+ixpServer.registerIntent({
+  name: 'chat',
+  description: 'Handle chat messages',
+  parameters: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' }
+    },
+    required: ['message']
+  },
+  component: 'ChatResponse'
+});
+
+ixpServer.registerIntent({
+  name: 'product-search',
+  description: 'Search for products',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string' },
+      category: { type: 'string' },
+      limit: { type: 'number', default: 10 }
+    },
+    required: ['query']
+  },
+  component: 'ProductList'
+});
+
+// Register components
+ixpServer.registerComponent({
+  name: 'ChatResponse',
+  description: 'Display chat response',
+  props: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      timestamp: { type: 'string' }
+    },
+    required: ['message']
+  }
+});
+
+ixpServer.registerComponent({
+  name: 'ProductList',
+  description: 'Display list of products',
+  props: {
+    type: 'object',
+    properties: {
+      products: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            price: { type: 'number' },
+            imageUrl: { type: 'string' }
+          }
+        }
+      }
+    },
+    required: ['products']
+  }
+});
 
 // Add IXP middleware
 app.use(createIXPMiddleware(ixpServer));
@@ -1074,8 +814,7 @@ app.get('/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     ixp: {
-      intents: ixpServer.getRegisteredIntents().length,
-      components: ixpServer.getRegisteredComponents().length
+      status: 'running'
     }
   });
 });
@@ -1092,8 +831,20 @@ app.use((error: Error, req: express.Request, res: express.Response, next: expres
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`Express server with IXP integration running on port ${PORT}`);
+// Start both Express and IXP servers
+Promise.all([
+  ixpServer.start(),
+  new Promise<void>((resolve) => {
+    app.listen(PORT, () => {
+      console.log(`Express server running on port ${PORT}`);
+      resolve();
+    });
+  })
+]).then(() => {
+  console.log('Both servers started successfully');
+}).catch((error) => {
+  console.error('Failed to start servers:', error);
+  process.exit(1);
 });
 
 export default app;
@@ -1134,7 +885,7 @@ export class IXPModule {
 ```typescript
 // ixp/ixp.service.ts
 import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
-import { createIXPServer, IXPServer } from 'ixp-server';
+import { IXPServer } from '@toopi/ixp-server-sdk';
 import { IXPConfigOptions } from './interfaces/ixp-config.interface';
 
 @Injectable()
@@ -1146,7 +897,7 @@ export class IXPService implements OnModuleInit {
   ) {}
   
   async onModuleInit() {
-    this.ixpServer = createIXPServer(this.config);
+    this.ixpServer = new IXPServer(this.config.serverConfig);
     
     // Register intents and components from config
     if (this.config.intents) {
@@ -1161,11 +912,12 @@ export class IXPService implements OnModuleInit {
       }
     }
     
+    await this.ixpServer.start();
     console.log('IXP Server initialized in NestJS');
   }
   
-  async processIntent(intent: string, parameters: any, context?: any) {
-    return this.ixpServer.processIntent(intent, parameters, context);
+  async renderComponent(componentName: string, props: Record<string, any>) {
+    return this.ixpServer.render(componentName, props);
   }
   
   getServer(): IXPServer {
@@ -1195,17 +947,19 @@ export class IXPController {
     try {
       const { intent, parameters } = body;
       
-      const response = await this.ixpService.processIntent(
+      const response = await this.ixpService.renderComponent(
         intent,
-        parameters,
-        {
-          request: req,
-          response: res,
-          user: (req as any).user
-        }
+        parameters || {}
       );
       
-      res.json(response);
+      res.json({
+        success: true,
+        component: response,
+        metadata: {
+          intent,
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch (error) {
       console.error('IXP processing error:', error);
       
@@ -1224,17 +978,19 @@ export class IXPController {
     @Res() res: Response
   ) {
     try {
-      const response = await this.ixpService.processIntent(
+      const response = await this.ixpService.renderComponent(
         intent,
-        parameters,
-        {
-          request: req,
-          response: res,
-          user: (req as any).user
-        }
+        parameters || {}
       );
       
-      res.json(response);
+      res.json({
+        success: true,
+        component: response,
+        metadata: {
+          intent,
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch (error) {
       console.error('IXP processing error:', error);
       

@@ -1,44 +1,35 @@
 # Core API Reference
 
-The IXP Server SDK provides a comprehensive set of APIs for building intent-driven servers. This document covers the core classes, functions, and interfaces.
+The IXP Server SDK core API provides the main server class and essential interfaces for building intent-driven applications.
 
 ## Table of Contents
 
 - [IXPServer](#ixpserver)
-- [Intent System](#intent-system)
-- [Component System](#component-system)
 - [Configuration](#configuration)
-- [Utility Functions](#utility-functions)
 - [Type Definitions](#type-definitions)
+- [Error Handling](#error-handling)
+- [Utility Functions](#utility-functions)
 
 ## IXPServer
 
-The main server class that orchestrates intent handling and component rendering.
+The main server class that handles intent registration, component management, and HTTP request processing.
 
 ### Constructor
 
 ```typescript
-class IXPServer {
-  constructor(config: IXPServerConfig)
-}
+new IXPServer(config?: IXPServerConfig)
 ```
 
-#### Parameters
+**Parameters**:
+- `config?: IXPServerConfig` - Optional server configuration
 
-- `config: IXPServerConfig` - Server configuration object
-
-#### Example
-
+**Example**:
 ```typescript
 import { IXPServer } from 'ixp-server';
 
 const server = new IXPServer({
   port: 3000,
-  host: 'localhost',
-  intents: [],
-  components: [],
-  middleware: [],
-  plugins: []
+  host: 'localhost'
 });
 ```
 
@@ -46,29 +37,29 @@ const server = new IXPServer({
 
 #### `start()`
 
-Starts the IXP server.
+Starts the HTTP server and begins listening for requests.
 
 ```typescript
-async start(): Promise<void>
+start(): Promise<void>
 ```
 
-**Returns**: Promise that resolves when server is started
+**Returns**: Promise that resolves when server starts successfully
 
 **Example**:
 ```typescript
 await server.start();
-console.log('Server started successfully');
+console.log('Server started on port 3000');
 ```
 
 #### `stop()`
 
-Stops the IXP server gracefully.
+Stops the HTTP server gracefully.
 
 ```typescript
-async stop(): Promise<void>
+stop(): Promise<void>
 ```
 
-**Returns**: Promise that resolves when server is stopped
+**Returns**: Promise that resolves when server stops
 
 **Example**:
 ```typescript
@@ -78,61 +69,79 @@ console.log('Server stopped');
 
 #### `registerIntent()`
 
-Registers a new intent with the server.
+Registers an intent definition with the server.
 
 ```typescript
-registerIntent(intent: Intent): void
+registerIntent(intent: IntentDefinition): void
 ```
 
 **Parameters**:
-- `intent: Intent` - Intent configuration object
+- `intent: IntentDefinition` - Intent definition object
 
 **Example**:
 ```typescript
 server.registerIntent({
-  name: 'user_profile',
-  description: 'Get user profile information',
+  name: 'show_product',
+  description: 'Display product information',
   parameters: {
-    userId: { type: 'string', required: true }
+    type: 'object',
+    properties: {
+      productId: {
+        type: 'string',
+        description: 'Product identifier'
+      }
+    },
+    required: ['productId']
   },
-  handler: async (params) => {
-    return {
-      component: 'UserProfile',
-      props: { userId: params.userId }
-    };
-  }
+  component: 'ProductCard',
+  version: '1.0.0'
 });
 ```
 
 #### `registerComponent()`
 
-Registers a new component with the server.
+Registers a component definition with the server.
 
 ```typescript
-registerComponent(component: Component): void
+registerComponent(component: ComponentDefinition): void
 ```
 
 **Parameters**:
-- `component: Component` - Component configuration object
+- `component: ComponentDefinition` - Component definition object
 
 **Example**:
 ```typescript
 server.registerComponent({
-  name: 'UserProfile',
-  description: 'User profile display component',
+  name: 'ProductCard',
+  description: 'Product display component',
   props: {
-    userId: { type: 'string', required: true },
-    showEmail: { type: 'boolean', required: false, default: false }
+    type: 'object',
+    properties: {
+      product: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string' },
+          price: { type: 'number' }
+        }
+      }
+    }
   },
   render: async (props) => {
-    const user = await getUserById(props.userId);
+    const { product } = props;
     return {
       type: 'div',
-      props: { className: 'user-profile' },
+      props: { className: 'product-card' },
       children: [
-        { type: 'h2', props: {}, children: [user.name] },
-        props.showEmail && { type: 'p', props: {}, children: [user.email] }
-      ].filter(Boolean)
+        {
+          type: 'h3',
+          children: [product.name]
+        },
+        {
+          type: 'p',
+          children: [`$${product.price}`]
+        }
+      ]
     };
   }
 });
@@ -143,7 +152,7 @@ server.registerComponent({
 Renders an intent with the given parameters.
 
 ```typescript
-async render(intentName: string, parameters: Record<string, any>): Promise<RenderResult>
+render(intentName: string, parameters: Record<string, any>): Promise<RenderResult>
 ```
 
 **Parameters**:
@@ -154,161 +163,16 @@ async render(intentName: string, parameters: Record<string, any>): Promise<Rende
 
 **Example**:
 ```typescript
-const result = await server.render('user_profile', { userId: '123' });
-console.log(result.component); // Rendered component tree
-```
-
-## Intent System
-
-### `createIntent()`
-
-Factory function for creating intent configurations.
-
-```typescript
-function createIntent(config: IntentConfig): Intent
-```
-
-**Parameters**:
-- `config: IntentConfig` - Intent configuration
-
-**Returns**: Intent object
-
-**Example**:
-```typescript
-import { createIntent } from 'ixp-server';
-
-const searchIntent = createIntent({
-  name: 'search_products',
-  description: 'Search for products',
-  parameters: {
-    query: { type: 'string', required: true },
-    category: { type: 'string', required: false },
-    limit: { type: 'number', required: false, default: 10 }
-  },
-  handler: async (params) => {
-    const products = await searchProducts(params.query, {
-      category: params.category,
-      limit: params.limit
-    });
-    
-    return {
-      component: 'ProductList',
-      props: { products }
-    };
-  }
+const result = await server.render('show_product', {
+  productId: 'prod-123'
 });
-```
 
-### Intent Configuration
-
-```typescript
-interface IntentConfig {
-  name: string;
-  description: string;
-  parameters: Record<string, ParameterDefinition>;
-  handler: IntentHandler;
-  middleware?: MiddlewareFunction[];
-  validation?: ValidationFunction;
+if (result.success) {
+  console.log('Rendered:', result.result);
+} else {
+  console.error('Render failed:', result.error);
 }
 ```
-
-#### Properties
-
-- `name: string` - Unique intent identifier
-- `description: string` - Human-readable description
-- `parameters: Record<string, ParameterDefinition>` - Parameter definitions
-- `handler: IntentHandler` - Intent execution function
-- `middleware?: MiddlewareFunction[]` - Optional middleware stack
-- `validation?: ValidationFunction` - Optional custom validation
-
-## Component System
-
-### `createComponent()`
-
-Factory function for creating component configurations.
-
-```typescript
-function createComponent(config: ComponentConfig): Component
-```
-
-**Parameters**:
-- `config: ComponentConfig` - Component configuration
-
-**Returns**: Component object
-
-**Example**:
-```typescript
-import { createComponent } from 'ixp-server';
-
-const productCard = createComponent({
-  name: 'ProductCard',
-  description: 'Product display card',
-  props: {
-    product: { type: 'object', required: true },
-    showPrice: { type: 'boolean', required: false, default: true },
-    variant: { type: 'string', required: false, default: 'default' }
-  },
-  render: async (props) => {
-    const { product, showPrice, variant } = props;
-    
-    return {
-      type: 'div',
-      props: { 
-        className: `product-card product-card--${variant}`,
-        'data-product-id': product.id
-      },
-      children: [
-        {
-          type: 'img',
-          props: {
-            src: product.image,
-            alt: product.name,
-            className: 'product-card__image'
-          }
-        },
-        {
-          type: 'div',
-          props: { className: 'product-card__content' },
-          children: [
-            {
-              type: 'h3',
-              props: { className: 'product-card__title' },
-              children: [product.name]
-            },
-            showPrice && {
-              type: 'p',
-              props: { className: 'product-card__price' },
-              children: [`$${product.price}`]
-            }
-          ].filter(Boolean)
-        }
-      ]
-    };
-  }
-});
-```
-
-### Component Configuration
-
-```typescript
-interface ComponentConfig {
-  name: string;
-  description: string;
-  props: Record<string, PropDefinition>;
-  render: ComponentRenderer;
-  middleware?: MiddlewareFunction[];
-  validation?: ValidationFunction;
-}
-```
-
-#### Properties
-
-- `name: string` - Unique component identifier
-- `description: string` - Human-readable description
-- `props: Record<string, PropDefinition>` - Prop definitions
-- `render: ComponentRenderer` - Component render function
-- `middleware?: MiddlewareFunction[]` - Optional middleware stack
-- `validation?: ValidationFunction` - Optional custom validation
 
 ## Configuration
 
@@ -320,14 +184,12 @@ Main server configuration interface.
 interface IXPServerConfig {
   port?: number;
   host?: string;
-  intents?: Intent[];
-  components?: Component[];
+  intents?: IntentDefinition[];
+  components?: ComponentDefinition[];
   middleware?: MiddlewareFunction[];
-  plugins?: Plugin[];
   cors?: CorsOptions;
   rateLimit?: RateLimitOptions;
   logging?: LoggingOptions;
-  swagger?: SwaggerOptions;
   health?: HealthOptions;
 }
 ```
@@ -336,65 +198,114 @@ interface IXPServerConfig {
 
 - `port?: number` - Server port (default: 3000)
 - `host?: string` - Server host (default: 'localhost')
-- `intents?: Intent[]` - Initial intents to register
-- `components?: Component[]` - Initial components to register
+- `intents?: IntentDefinition[]` - Initial intents to register
+- `components?: ComponentDefinition[]` - Initial components to register
 - `middleware?: MiddlewareFunction[]` - Global middleware stack
-- `plugins?: Plugin[]` - Plugins to load
 - `cors?: CorsOptions` - CORS configuration
 - `rateLimit?: RateLimitOptions` - Rate limiting configuration
 - `logging?: LoggingOptions` - Logging configuration
-- `swagger?: SwaggerOptions` - Swagger documentation configuration
 - `health?: HealthOptions` - Health check configuration
 
-## Utility Functions
-
-### `validateIntent()`
-
-Validates an intent configuration.
-
+**Example**:
 ```typescript
-function validateIntent(intent: Intent): ValidationResult
+const config: IXPServerConfig = {
+  port: 8080,
+  host: '0.0.0.0',
+  intents: [
+    {
+      name: 'greeting',
+      description: 'Generate greeting message',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' }
+        }
+      },
+      component: 'GreetingCard'
+    }
+  ],
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+};
 ```
-
-**Parameters**:
-- `intent: Intent` - Intent to validate
-
-**Returns**: Validation result with success status and errors
-
-### `validateComponent()`
-
-Validates a component configuration.
-
-```typescript
-function validateComponent(component: Component): ValidationResult
-```
-
-**Parameters**:
-- `component: Component` - Component to validate
-
-**Returns**: Validation result with success status and errors
-
-### `createMiddleware()`
-
-Factory function for creating middleware.
-
-```typescript
-function createMiddleware(fn: MiddlewareFunction): Middleware
-```
-
-**Parameters**:
-- `fn: MiddlewareFunction` - Middleware function
-
-**Returns**: Middleware object
 
 ## Type Definitions
 
-### Core Types
+### Core Interfaces
+
+#### `IntentDefinition`
+
+Defines the structure of an intent.
 
 ```typescript
-// Intent handler function
-type IntentHandler = (parameters: Record<string, any>) => Promise<IntentResult>;
+interface IntentDefinition {
+  name: string;
+  description: string;
+  parameters: JSONSchema;
+  component: string;
+  version?: string;
+  crawlable?: boolean;
+  metadata?: Record<string, any>;
+}
+```
 
+#### `ComponentDefinition`
+
+Defines the structure of a component.
+
+```typescript
+interface ComponentDefinition {
+  name: string;
+  description: string;
+  props: JSONSchema;
+  render: ComponentRenderer;
+  version?: string;
+  metadata?: Record<string, any>;
+}
+```
+
+#### `IntentRequest`
+
+Structure of an incoming intent request.
+
+```typescript
+interface IntentRequest {
+  intent: {
+    name: string;
+    parameters: Record<string, any>;
+  };
+  context?: {
+    userId?: string;
+    sessionId?: string;
+    timestamp?: string;
+    metadata?: Record<string, any>;
+  };
+}
+```
+
+#### `IntentResponse`
+
+Structure of an intent response.
+
+```typescript
+interface IntentResponse {
+  success: boolean;
+  result?: VirtualNode;
+  error?: string;
+  metadata?: {
+    intent: string;
+    component: string;
+    renderTime: string;
+    version?: string;
+  };
+}
+```
+
+### Function Types
+
+```typescript
 // Component renderer function
 type ComponentRenderer = (props: Record<string, any>) => Promise<VirtualNode>;
 
@@ -408,12 +319,6 @@ type ValidationFunction = (data: any) => ValidationResult;
 ### Result Types
 
 ```typescript
-interface IntentResult {
-  component: string;
-  props: Record<string, any>;
-  metadata?: Record<string, any>;
-}
-
 interface RenderResult {
   success: boolean;
   result?: VirtualNode;
@@ -436,28 +341,29 @@ interface ValidationResult {
 ```typescript
 interface VirtualNode {
   type: string;
-  props: Record<string, any>;
+  props?: Record<string, any>;
   children?: (VirtualNode | string)[];
 }
 ```
 
-### Parameter & Prop Definitions
+### JSON Schema Types
+
+The SDK uses JSON Schema for parameter and prop validation:
 
 ```typescript
-interface ParameterDefinition {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  required: boolean;
-  default?: any;
+interface JSONSchema {
+  type: 'object' | 'array' | 'string' | 'number' | 'boolean' | 'null';
+  properties?: Record<string, JSONSchema>;
+  items?: JSONSchema;
+  required?: string[];
+  enum?: any[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
   description?: string;
-  validation?: (value: any) => boolean;
-}
-
-interface PropDefinition {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  required: boolean;
   default?: any;
-  description?: string;
-  validation?: (value: any) => boolean;
 }
 ```
 
@@ -493,6 +399,47 @@ try {
   }
 }
 ```
+
+## Utility Functions
+
+### `validateIntent()`
+
+Validates an intent definition against the schema.
+
+```typescript
+function validateIntent(intent: IntentDefinition): ValidationResult
+```
+
+**Parameters**:
+- `intent: IntentDefinition` - Intent to validate
+
+**Returns**: Validation result with success status and errors
+
+### `validateComponent()`
+
+Validates a component definition against the schema.
+
+```typescript
+function validateComponent(component: ComponentDefinition): ValidationResult
+```
+
+**Parameters**:
+- `component: ComponentDefinition` - Component to validate
+
+**Returns**: Validation result with success status and errors
+
+### `createMiddleware()`
+
+Factory function for creating middleware.
+
+```typescript
+function createMiddleware(fn: MiddlewareFunction): Middleware
+```
+
+**Parameters**:
+- `fn: MiddlewareFunction` - Middleware function
+
+**Returns**: Middleware object
 
 ---
 

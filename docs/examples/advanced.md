@@ -8,10 +8,10 @@ This document provides complex, real-world examples demonstrating advanced featu
 - [Advanced Intent Composition](#advanced-intent-composition)
 - [Complex Component Systems](#complex-component-systems)
 - [Custom Middleware Pipeline](#custom-middleware-pipeline)
-- [Plugin Ecosystem](#plugin-ecosystem)
 - [Performance Optimization](#performance-optimization)
 - [Security Implementation](#security-implementation)
-- [Microservices Integration](#microservices-integration)
+- [Real-time Data Integration](#real-time-data-integration)
+- [Advanced Error Handling](#advanced-error-handling)
 
 ## Multi-Service Architecture
 
@@ -20,7 +20,7 @@ This document provides complex, real-world examples demonstrating advanced featu
 ```typescript
 // services/ServiceRegistry.ts
 import { EventEmitter } from 'events';
-import { IXPServer } from '@ixp/server-sdk';
+import { IXPServer } from 'ixp-server';
 
 interface ServiceDefinition {
   id: string;
@@ -95,1645 +95,470 @@ export class ServiceRegistry extends EventEmitter {
 }
 ```
 
-### Distributed Intent Processing
+### Distributed IXP Server Setup
 
 ```typescript
-// services/DistributedIntentProcessor.ts
-import { Intent, IntentContext, IntentResult } from '@ixp/server-sdk';
+// services/DistributedIXPServer.ts
+import { IXPServer } from 'ixp-server';
 import { ServiceRegistry } from './ServiceRegistry';
+import { Request, Response, NextFunction } from 'express';
 
-export class DistributedIntentProcessor {
-  constructor(
-    private serviceRegistry: ServiceRegistry,
-    private loadBalancer: LoadBalancer
-  ) {}
+export class DistributedIXPServer {
+  private server: IXPServer;
+  private serviceRegistry: ServiceRegistry;
+  private serviceId: string;
 
-  async processIntent(
-    intentName: string,
-    context: IntentContext
-  ): Promise<IntentResult> {
-    // Find services that can handle this intent
-    const services = this.serviceRegistry
-      .getServicesByCapability(`intent:${intentName}`);
-
-    if (services.length === 0) {
-      throw new Error(`No services available for intent: ${intentName}`);
-    }
-
-    // Select service using load balancing
-    const selectedService = this.loadBalancer.selectService(services);
-
-    try {
-      // Process intent on selected service
-      const result = await this.callRemoteIntent(
-        selectedService,
-        intentName,
-        context
-      );
-
-      // Update load balancer metrics
-      this.loadBalancer.recordSuccess(selectedService.id);
-      
-      return result;
-    } catch (error) {
-      // Record failure and try fallback
-      this.loadBalancer.recordFailure(selectedService.id);
-      
-      // Try fallback service if available
-      const fallbackServices = services.filter(s => s.id !== selectedService.id);
-      if (fallbackServices.length > 0) {
-        return this.processIntent(intentName, context);
-      }
-      
-      throw error;
-    }
-  }
-
-  private async callRemoteIntent(
-    service: ServiceDefinition,
-    intentName: string,
-    context: IntentContext
-  ): Promise<IntentResult> {
-    const response = await fetch(`${service.endpoint}/intents/${intentName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Service-Token': process.env.SERVICE_TOKEN || ''
-      },
-      body: JSON.stringify(context)
+  constructor(config: {
+    port: number;
+    serviceId: string;
+    registryEndpoint?: string;
+  }) {
+    this.serviceId = config.serviceId;
+    this.serviceRegistry = new ServiceRegistry();
+    
+    this.server = new IXPServer({
+      port: config.port,
+      middleware: [
+        this.serviceDiscoveryMiddleware.bind(this),
+        this.loadBalancingMiddleware.bind(this),
+        this.circuitBreakerMiddleware.bind(this)
+      ]
     });
 
-    if (!response.ok) {
-      throw new Error(`Remote intent call failed: ${response.status}`);
-    }
-
-    return response.json();
-  }
-}
-```
-
-### Load Balancer Implementation
-
-```typescript
-// services/LoadBalancer.ts
-interface ServiceMetrics {
-  successCount: number;
-  failureCount: number;
-  avgResponseTime: number;
-  lastUsed: number;
-}
-
-export class LoadBalancer {
-  private metrics = new Map<string, ServiceMetrics>();
-  private strategy: 'round-robin' | 'least-connections' | 'weighted' = 'weighted';
-
-  selectService(services: ServiceDefinition[]): ServiceDefinition {
-    switch (this.strategy) {
-      case 'round-robin':
-        return this.roundRobinSelect(services);
-      case 'least-connections':
-        return this.leastConnectionsSelect(services);
-      case 'weighted':
-        return this.weightedSelect(services);
-      default:
-        return services[0];
-    }
+    this.setupServiceRegistration(config);
   }
 
-  recordSuccess(serviceId: string, responseTime?: number): void {
-    const metrics = this.getOrCreateMetrics(serviceId);
-    metrics.successCount++;
-    metrics.lastUsed = Date.now();
-    
-    if (responseTime) {
-      metrics.avgResponseTime = 
-        (metrics.avgResponseTime + responseTime) / 2;
-    }
+  private async setupServiceRegistration(config: any) {
+    // Register this service instance
+    const serviceDefinition: ServiceDefinition = {
+      id: this.serviceId,
+      name: 'IXP Server Instance',
+      version: '1.0.0',
+      endpoint: `http://localhost:${config.port}`,
+      health: `http://localhost:${config.port}/health`,
+      capabilities: ['intent:processing', 'component:rendering'],
+      metadata: {
+        startTime: new Date().toISOString(),
+        nodeVersion: process.version
+      }
+    };
+
+    await this.serviceRegistry.register(serviceDefinition);
   }
 
-  recordFailure(serviceId: string): void {
-    const metrics = this.getOrCreateMetrics(serviceId);
-    metrics.failureCount++;
-  }
-
-  private weightedSelect(services: ServiceDefinition[]): ServiceDefinition {
-    const weights = services.map(service => {
-      const metrics = this.metrics.get(service.id);
-      if (!metrics) return 1;
-
-      const successRate = metrics.successCount / 
-        (metrics.successCount + metrics.failureCount);
-      const responseTimeFactor = 1000 / (metrics.avgResponseTime || 1000);
-      
-      return successRate * responseTimeFactor;
+  registerDistributedIntent(intentDef: {
+    name: string;
+    description: string;
+    parameters: any;
+    component: string;
+    version: string;
+    distributed?: {
+      strategy: 'round-robin' | 'least-load' | 'geo-proximity';
+      fallback?: boolean;
+      timeout?: number;
+    };
+  }) {
+    this.server.registerIntent({
+      name: intentDef.name,
+      description: intentDef.description,
+      parameters: intentDef.parameters,
+      component: intentDef.component,
+      version: intentDef.version,
+      metadata: {
+        distributed: intentDef.distributed || { strategy: 'round-robin' }
+      }
     });
+  }
 
-    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-    const random = Math.random() * totalWeight;
+  private serviceDiscoveryMiddleware(req: Request, res: Response, next: NextFunction) {
+    // Add service discovery information to request
+    (req as any).services = this.serviceRegistry.getAllServices();
+    (req as any).serviceRegistry = this.serviceRegistry;
+    next();
+  }
+
+  private loadBalancingMiddleware(req: Request, res: Response, next: NextFunction) {
+    // Implement load balancing logic for distributed requests
+    const startTime = Date.now();
     
-    let currentWeight = 0;
-    for (let i = 0; i < services.length; i++) {
-      currentWeight += weights[i];
-      if (random <= currentWeight) {
-        return services[i];
-      }
-    }
-
-    return services[0];
+    res.on('finish', () => {
+      const duration = Date.now() - startTime;
+      // Record metrics for load balancing decisions
+      console.log(`Request processed in ${duration}ms`);
+    });
+    
+    next();
   }
 
-  private roundRobinSelect(services: ServiceDefinition[]): ServiceDefinition {
-    // Simple round-robin implementation
-    const now = Date.now();
-    let oldestService = services[0];
-    let oldestTime = this.metrics.get(services[0].id)?.lastUsed || 0;
-
-    for (const service of services) {
-      const lastUsed = this.metrics.get(service.id)?.lastUsed || 0;
-      if (lastUsed < oldestTime) {
-        oldestService = service;
-        oldestTime = lastUsed;
-      }
-    }
-
-    return oldestService;
-  }
-
-  private leastConnectionsSelect(services: ServiceDefinition[]): ServiceDefinition {
-    // For this example, we'll use success count as a proxy for connections
-    let leastBusyService = services[0];
-    let leastConnections = this.metrics.get(services[0].id)?.successCount || 0;
-
-    for (const service of services) {
-      const connections = this.metrics.get(service.id)?.successCount || 0;
-      if (connections < leastConnections) {
-        leastBusyService = service;
-        leastConnections = connections;
-      }
-    }
-
-    return leastBusyService;
-  }
-
-  private getOrCreateMetrics(serviceId: string): ServiceMetrics {
-    if (!this.metrics.has(serviceId)) {
-      this.metrics.set(serviceId, {
-        successCount: 0,
-        failureCount: 0,
-        avgResponseTime: 0,
-        lastUsed: 0
+  private circuitBreakerMiddleware(req: Request, res: Response, next: NextFunction) {
+    // Implement circuit breaker pattern for service resilience
+    const serviceHealth = this.serviceRegistry.getAllServices()
+      .filter(service => service.capabilities.includes('intent:processing'));
+    
+    if (serviceHealth.length === 0) {
+      return res.status(503).json({ 
+        error: 'No healthy services available',
+        circuitBreaker: 'open'
       });
     }
-    return this.metrics.get(serviceId)!;
+    
+    next();
+  }
+
+  async start() {
+    await this.server.start();
+    console.log(`Distributed IXP Server ${this.serviceId} started`);
+  }
+
+  async stop() {
+    await this.serviceRegistry.unregister(this.serviceId);
+    await this.server.stop();
   }
 }
 ```
 
 ## Advanced Intent Composition
 
-### Intent Orchestration Engine
+### Workflow Engine for Intent Orchestration
 
 ```typescript
-// intents/OrchestrationEngine.ts
-import { Intent, IntentContext, IntentResult } from '@ixp/server-sdk';
+// intents/WorkflowEngine.ts
+import { IXPServer } from 'ixp-server';
 
 interface WorkflowStep {
   id: string;
   intentName: string;
-  condition?: (context: IntentContext, results: Map<string, any>) => boolean;
+  condition?: (context: any, results: Map<string, any>) => boolean;
   transform?: (input: any) => any;
   parallel?: boolean;
+  retries?: number;
+  timeout?: number;
 }
 
 interface Workflow {
   id: string;
   name: string;
+  description: string;
   steps: WorkflowStep[];
   errorHandling: 'stop' | 'continue' | 'retry';
+  maxRetries?: number;
 }
 
-export class IntentOrchestrationEngine {
+export class WorkflowEngine {
   private workflows = new Map<string, Workflow>();
-  private intentRegistry: Map<string, Intent>;
+  private server: IXPServer;
 
-  constructor(intentRegistry: Map<string, Intent>) {
-    this.intentRegistry = intentRegistry;
+  constructor(server: IXPServer) {
+    this.server = server;
+    this.registerWorkflowIntents();
   }
 
   registerWorkflow(workflow: Workflow): void {
     this.workflows.set(workflow.id, workflow);
+    
+    // Register a dynamic intent for this workflow
+    this.server.registerIntent({
+      name: `workflow_${workflow.id}`,
+      description: `Execute workflow: ${workflow.description}`,
+      parameters: {
+        type: 'object',
+        properties: {
+          input: {
+            type: 'object',
+            description: 'Input data for the workflow'
+          },
+          context: {
+            type: 'object',
+            description: 'Additional context for workflow execution',
+            default: {}
+          }
+        },
+        required: ['input']
+      },
+      component: 'WorkflowResult',
+      version: '1.0.0',
+      metadata: {
+        workflowId: workflow.id,
+        isWorkflow: true
+      }
+    });
   }
 
-  async executeWorkflow(
-    workflowId: string,
-    context: IntentContext
-  ): Promise<IntentResult> {
+  private registerWorkflowIntents() {
+    // Register workflow execution component
+    this.server.registerComponent({
+      name: 'WorkflowResult',
+      description: 'Display workflow execution results',
+      props: {
+        type: 'object',
+        properties: {
+          workflowId: { type: 'string' },
+          status: { type: 'string' },
+          results: { type: 'object' },
+          executionTime: { type: 'number' },
+          steps: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                status: { type: 'string' },
+                result: { type: 'object' },
+                duration: { type: 'number' }
+              }
+            }
+          }
+        },
+        required: ['workflowId', 'status']
+      },
+      render: async (props) => {
+        const { workflowId, status, results, executionTime, steps } = props;
+        
+        return {
+          type: 'div',
+          props: { className: `workflow-result status-${status}` },
+          children: [
+            {
+              type: 'header',
+              props: { className: 'workflow-header' },
+              children: [
+                {
+                  type: 'h2',
+                  children: [`Workflow: ${workflowId}`]
+                },
+                {
+                  type: 'div',
+                  props: { className: 'workflow-status' },
+                  children: [
+                    {
+                      type: 'span',
+                      props: { className: `status-badge ${status}` },
+                      children: [status.toUpperCase()]
+                    },
+                    executionTime && {
+                      type: 'span',
+                      props: { className: 'execution-time' },
+                      children: [`${executionTime}ms`]
+                    }
+                  ].filter(Boolean)
+                }
+              ]
+            },
+            steps && {
+              type: 'div',
+              props: { className: 'workflow-steps' },
+              children: [
+                {
+                  type: 'h3',
+                  children: ['Execution Steps']
+                },
+                {
+                  type: 'div',
+                  props: { className: 'steps-list' },
+                  children: steps.map((step: any) => ({
+                    type: 'div',
+                    props: { 
+                      className: `step-item status-${step.status}`,
+                      'data-step-id': step.id
+                    },
+                    children: [
+                      {
+                        type: 'div',
+                        props: { className: 'step-header' },
+                        children: [
+                          {
+                            type: 'span',
+                            props: { className: 'step-id' },
+                            children: [step.id]
+                          },
+                          {
+                            type: 'span',
+                            props: { className: 'step-status' },
+                            children: [step.status]
+                          },
+                          step.duration && {
+                            type: 'span',
+                            props: { className: 'step-duration' },
+                            children: [`${step.duration}ms`]
+                          }
+                        ].filter(Boolean)
+                      },
+                      step.result && {
+                        type: 'div',
+                        props: { className: 'step-result' },
+                        children: [
+                          {
+                            type: 'pre',
+                            children: [JSON.stringify(step.result, null, 2)]
+                          }
+                        ]
+                      }
+                    ].filter(Boolean)
+                  }))
+                }
+              ]
+            },
+            results && {
+              type: 'div',
+              props: { className: 'workflow-results' },
+              children: [
+                {
+                  type: 'h3',
+                  children: ['Final Results']
+                },
+                {
+                  type: 'pre',
+                  props: { className: 'results-json' },
+                  children: [JSON.stringify(results, null, 2)]
+                }
+              ]
+            }
+          ].filter(Boolean)
+        };
+      }
+    });
+  }
+
+  async executeWorkflow(workflowId: string, input: any, context: any = {}): Promise<any> {
     const workflow = this.workflows.get(workflowId);
     if (!workflow) {
       throw new Error(`Workflow not found: ${workflowId}`);
     }
 
+    const startTime = Date.now();
     const results = new Map<string, any>();
-    const parallelGroups: WorkflowStep[][] = [];
+    const stepResults: any[] = [];
+    
+    try {
+      // Group steps by parallel execution
+      const stepGroups = this.groupStepsByParallelism(workflow.steps);
+      
+      for (const group of stepGroups) {
+        if (group.length === 1) {
+          // Sequential execution
+          const stepResult = await this.executeStep(group[0], input, context, results);
+          results.set(group[0].id, stepResult.result);
+          stepResults.push(stepResult);
+        } else {
+          // Parallel execution
+          const promises = group.map(step => 
+            this.executeStep(step, input, context, results)
+          );
+          const groupResults = await Promise.all(promises);
+          
+          group.forEach((step, index) => {
+            results.set(step.id, groupResults[index].result);
+            stepResults.push(groupResults[index]);
+          });
+        }
+      }
+
+      const executionTime = Date.now() - startTime;
+      const finalResults = this.combineResults(results);
+
+      return {
+        workflowId,
+        status: 'completed',
+        results: finalResults,
+        executionTime,
+        steps: stepResults
+      };
+
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        workflowId,
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        executionTime,
+        steps: stepResults
+      };
+    }
+  }
+
+  private groupStepsByParallelism(steps: WorkflowStep[]): WorkflowStep[][] {
+    const groups: WorkflowStep[][] = [];
     let currentGroup: WorkflowStep[] = [];
 
-    // Group steps by parallel execution
-    for (const step of workflow.steps) {
+    for (const step of steps) {
       if (step.parallel && currentGroup.length > 0) {
         currentGroup.push(step);
       } else {
         if (currentGroup.length > 0) {
-          parallelGroups.push(currentGroup);
+          groups.push(currentGroup);
         }
         currentGroup = [step];
       }
     }
+    
     if (currentGroup.length > 0) {
-      parallelGroups.push(currentGroup);
+      groups.push(currentGroup);
     }
 
-    // Execute step groups
-    for (const group of parallelGroups) {
-      if (group.length === 1) {
-        // Sequential execution
-        const result = await this.executeStep(group[0], context, results);
-        results.set(group[0].id, result);
-      } else {
-        // Parallel execution
-        const promises = group.map(step => 
-          this.executeStep(step, context, results)
-        );
-        const groupResults = await Promise.all(promises);
-        
-        group.forEach((step, index) => {
-          results.set(step.id, groupResults[index]);
-        });
-      }
-    }
-
-    // Combine results
-    return this.combineResults(results, workflow);
+    return groups;
   }
 
   private async executeStep(
     step: WorkflowStep,
-    context: IntentContext,
+    input: any,
+    context: any,
     previousResults: Map<string, any>
   ): Promise<any> {
-    // Check condition if present
-    if (step.condition && !step.condition(context, previousResults)) {
-      return null;
-    }
-
-    const intent = this.intentRegistry.get(step.intentName);
-    if (!intent) {
-      throw new Error(`Intent not found: ${step.intentName}`);
-    }
-
-    // Transform input if needed
-    let stepContext = context;
-    if (step.transform) {
-      stepContext = {
-        ...context,
-        input: step.transform(context.input)
-      };
-    }
-
+    const stepStartTime = Date.now();
+    
     try {
-      return await intent.handler(stepContext);
-    } catch (error) {
-      console.error(`Step ${step.id} failed:`, error);
-      throw error;
-    }
-  }
-
-  private combineResults(
-    results: Map<string, any>,
-    workflow: Workflow
-  ): IntentResult {
-    const combinedData = {};
-    const components = [];
-
-    for (const [stepId, result] of results) {
-      if (result) {
-        if (result.component) {
-          components.push(result.component);
-        }
-        if (result.data) {
-          Object.assign(combinedData, result.data);
-        }
-      }
-    }
-
-    return {
-      component: components.length > 0 ? 'WorkflowResult' : undefined,
-      props: {
-        workflowId: workflow.id,
-        results: combinedData,
-        components
-      },
-      data: combinedData
-    };
-  }
-}
-```
-
-### Complex Intent with State Management
-
-```typescript
-// intents/ConversationIntent.ts
-import { Intent, IntentContext } from '@ixp/server-sdk';
-
-interface ConversationState {
-  userId: string;
-  sessionId: string;
-  currentStep: string;
-  data: Record<string, any>;
-  history: Array<{
-    timestamp: number;
-    input: string;
-    output: any;
-  }>;
-}
-
-export class ConversationIntent implements Intent {
-  id = 'conversation';
-  name = 'Multi-turn Conversation';
-  description = 'Handles complex multi-turn conversations with state';
-
-  private stateStore = new Map<string, ConversationState>();
-  private conversationFlows = new Map<string, ConversationFlow>();
-
-  constructor() {
-    this.initializeFlows();
-  }
-
-  async handler(context: IntentContext): Promise<any> {
-    const { userId, sessionId, input } = context;
-    const stateKey = `${userId}:${sessionId}`;
-    
-    // Get or create conversation state
-    let state = this.stateStore.get(stateKey);
-    if (!state) {
-      state = {
-        userId,
-        sessionId,
-        currentStep: 'start',
-        data: {},
-        history: []
-      };
-      this.stateStore.set(stateKey, state);
-    }
-
-    // Add to history
-    state.history.push({
-      timestamp: Date.now(),
-      input,
-      output: null
-    });
-
-    // Process current step
-    const flow = this.conversationFlows.get('default');
-    if (!flow) {
-      throw new Error('No conversation flow defined');
-    }
-
-    const currentStep = flow.steps.get(state.currentStep);
-    if (!currentStep) {
-      throw new Error(`Invalid step: ${state.currentStep}`);
-    }
-
-    // Execute step logic
-    const result = await currentStep.execute(input, state);
-    
-    // Update state
-    if (result.nextStep) {
-      state.currentStep = result.nextStep;
-    }
-    if (result.data) {
-      Object.assign(state.data, result.data);
-    }
-
-    // Update history with output
-    state.history[state.history.length - 1].output = result;
-
-    return {
-      component: 'ConversationStep',
-      props: {
-        step: state.currentStep,
-        message: result.message,
-        options: result.options,
-        data: state.data
-      },
-      data: {
-        conversationState: state,
-        isComplete: result.isComplete
-      }
-    };
-  }
-
-  private initializeFlows(): void {
-    const defaultFlow = new ConversationFlow('default');
-    
-    // Define conversation steps
-    defaultFlow.addStep('start', new GreetingStep());
-    defaultFlow.addStep('collect_info', new InfoCollectionStep());
-    defaultFlow.addStep('process', new ProcessingStep());
-    defaultFlow.addStep('complete', new CompletionStep());
-    
-    this.conversationFlows.set('default', defaultFlow);
-  }
-}
-
-// Conversation flow classes
-class ConversationFlow {
-  steps = new Map<string, ConversationStep>();
-
-  constructor(public id: string) {}
-
-  addStep(id: string, step: ConversationStep): void {
-    this.steps.set(id, step);
-  }
-}
-
-abstract class ConversationStep {
-  abstract execute(
-    input: string,
-    state: ConversationState
-  ): Promise<{
-    message: string;
-    nextStep?: string;
-    options?: string[];
-    data?: Record<string, any>;
-    isComplete?: boolean;
-  }>;
-}
-
-class GreetingStep extends ConversationStep {
-  async execute(input: string, state: ConversationState) {
-    return {
-      message: `Hello! I'm here to help you. What would you like to do today?`,
-      nextStep: 'collect_info',
-      options: ['Get information', 'Process data', 'Help']
-    };
-  }
-}
-
-class InfoCollectionStep extends ConversationStep {
-  async execute(input: string, state: ConversationState) {
-    // Parse user input and collect required information
-    const info = this.parseUserInput(input);
-    
-    return {
-      message: `I understand you want to ${info.action}. Let me help you with that.`,
-      nextStep: 'process',
-      data: { userAction: info.action, parameters: info.parameters }
-    };
-  }
-
-  private parseUserInput(input: string): { action: string; parameters: any } {
-    // Simple NLP parsing (in real implementation, use proper NLP)
-    const lowerInput = input.toLowerCase();
-    
-    if (lowerInput.includes('information') || lowerInput.includes('info')) {
-      return { action: 'get_info', parameters: {} };
-    } else if (lowerInput.includes('process') || lowerInput.includes('data')) {
-      return { action: 'process_data', parameters: {} };
-    } else {
-      return { action: 'help', parameters: {} };
-    }
-  }
-}
-
-class ProcessingStep extends ConversationStep {
-  async execute(input: string, state: ConversationState) {
-    const action = state.data.userAction;
-    
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    return {
-      message: `I've completed the ${action} for you. Is there anything else you need?`,
-      nextStep: 'complete',
-      data: { result: `Processed: ${action}` }
-    };
-  }
-}
-
-class CompletionStep extends ConversationStep {
-  async execute(input: string, state: ConversationState) {
-    return {
-      message: `Thank you for using our service! Have a great day!`,
-      isComplete: true
-    };
-  }
-}
-```
-
-## Complex Component Systems
-
-### Dynamic Component Factory
-
-```typescript
-// components/ComponentFactory.ts
-import { Component, ComponentProps } from '@ixp/server-sdk';
-
-interface ComponentDefinition {
-  name: string;
-  version: string;
-  dependencies: string[];
-  props: Record<string, any>;
-  template: string;
-  styles?: string;
-  scripts?: string;
-}
-
-export class ComponentFactory {
-  private components = new Map<string, ComponentDefinition>();
-  private cache = new Map<string, Component>();
-  private loader: ComponentLoader;
-
-  constructor() {
-    this.loader = new ComponentLoader();
-  }
-
-  async registerComponent(definition: ComponentDefinition): Promise<void> {
-    // Validate dependencies
-    await this.validateDependencies(definition.dependencies);
-    
-    this.components.set(definition.name, definition);
-    
-    // Pre-compile if needed
-    if (definition.template.includes('{{')) {
-      await this.precompileTemplate(definition);
-    }
-  }
-
-  async createComponent(
-    name: string,
-    props: ComponentProps
-  ): Promise<Component> {
-    const cacheKey = `${name}:${JSON.stringify(props)}`;
-    
-    // Check cache first
-    if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey)!;
-    }
-
-    const definition = this.components.get(name);
-    if (!definition) {
-      throw new Error(`Component not found: ${name}`);
-    }
-
-    // Load dependencies
-    await this.loadDependencies(definition.dependencies);
-
-    // Create component instance
-    const component = await this.instantiateComponent(definition, props);
-    
-    // Cache the component
-    this.cache.set(cacheKey, component);
-    
-    return component;
-  }
-
-  private async validateDependencies(dependencies: string[]): Promise<void> {
-    for (const dep of dependencies) {
-      if (!this.components.has(dep)) {
-        // Try to load from external source
-        try {
-          await this.loader.loadComponent(dep);
-        } catch (error) {
-          throw new Error(`Dependency not found: ${dep}`);
-        }
-      }
-    }
-  }
-
-  private async loadDependencies(dependencies: string[]): Promise<void> {
-    const loadPromises = dependencies.map(dep => 
-      this.createComponent(dep, {})
-    );
-    await Promise.all(loadPromises);
-  }
-
-  private async precompileTemplate(definition: ComponentDefinition): Promise<void> {
-    // Simple template compilation (use a real template engine in production)
-    const compiled = definition.template.replace(
-      /\{\{\s*(\w+)\s*\}\}/g,
-      (match, propName) => `\${props.${propName} || ''}`
-    );
-    
-    definition.template = compiled;
-  }
-
-  private async instantiateComponent(
-    definition: ComponentDefinition,
-    props: ComponentProps
-  ): Promise<Component> {
-    return {
-      name: definition.name,
-      render: async (renderProps: ComponentProps) => {
-        const mergedProps = { ...props, ...renderProps };
-        
-        // Execute template with props
-        const html = this.executeTemplate(definition.template, mergedProps);
-        
+      // Check condition if present
+      if (step.condition && !step.condition(context, previousResults)) {
         return {
-          html,
-          css: definition.styles,
-          js: definition.scripts
+          id: step.id,
+          status: 'skipped',
+          result: null,
+          duration: Date.now() - stepStartTime
         };
       }
-    };
-  }
 
-  private executeTemplate(template: string, props: ComponentProps): string {
-    // Simple template execution (use a real template engine in production)
-    try {
-      const func = new Function('props', `return \`${template}\`;`);
-      return func(props);
-    } catch (error) {
-      console.error('Template execution error:', error);
-      return '<div>Error rendering component</div>';
-    }
-  }
-}
-
-class ComponentLoader {
-  async loadComponent(name: string): Promise<ComponentDefinition> {
-    // Load component from external source (registry, file system, etc.)
-    const response = await fetch(`/api/components/${name}`);
-    if (!response.ok) {
-      throw new Error(`Failed to load component: ${name}`);
-    }
-    return response.json();
-  }
-}
-```
-
-### Reactive Component System
-
-```typescript
-// components/ReactiveComponent.ts
-import { EventEmitter } from 'events';
-
-interface ReactiveState {
-  [key: string]: any;
-}
-
-interface StateChange {
-  path: string;
-  oldValue: any;
-  newValue: any;
-  timestamp: number;
-}
-
-export class ReactiveComponent extends EventEmitter {
-  private state: ReactiveState = {};
-  private watchers = new Map<string, Array<(value: any) => void>>();
-  private computed = new Map<string, () => any>();
-  private stateHistory: StateChange[] = [];
-
-  constructor(initialState: ReactiveState = {}) {
-    super();
-    this.state = this.createReactiveProxy(initialState);
-  }
-
-  // Create a proxy to intercept state changes
-  private createReactiveProxy(target: ReactiveState): ReactiveState {
-    return new Proxy(target, {
-      set: (obj, prop, value) => {
-        const oldValue = obj[prop as string];
-        obj[prop as string] = value;
-        
-        // Record state change
-        const change: StateChange = {
-          path: prop as string,
-          oldValue,
-          newValue: value,
-          timestamp: Date.now()
-        };
-        this.stateHistory.push(change);
-        
-        // Trigger watchers
-        this.triggerWatchers(prop as string, value, oldValue);
-        
-        // Emit change event
-        this.emit('state:change', change);
-        
-        return true;
-      },
-      
-      get: (obj, prop) => {
-        // Check if it's a computed property
-        if (this.computed.has(prop as string)) {
-          return this.computed.get(prop as string)!();
-        }
-        
-        return obj[prop as string];
+      // Transform input if needed
+      let stepInput = input;
+      if (step.transform) {
+        stepInput = step.transform(input);
       }
-    });
-  }
 
-  // Watch for state changes
-  watch(path: string, callback: (value: any, oldValue?: any) => void): () => void {
-    if (!this.watchers.has(path)) {
-      this.watchers.set(path, []);
-    }
-    
-    this.watchers.get(path)!.push(callback);
-    
-    // Return unwatch function
-    return () => {
-      const watchers = this.watchers.get(path);
-      if (watchers) {
-        const index = watchers.indexOf(callback);
-        if (index > -1) {
-          watchers.splice(index, 1);
-        }
-      }
-    };
-  }
-
-  // Define computed properties
-  computed(name: string, computeFn: () => any): void {
-    this.computed.set(name, computeFn);
-  }
-
-  // Get current state
-  getState(): ReactiveState {
-    return { ...this.state };
-  }
-
-  // Set state (batch update)
-  setState(updates: Partial<ReactiveState>): void {
-    Object.assign(this.state, updates);
-  }
-
-  // Get state history
-  getHistory(): StateChange[] {
-    return [...this.stateHistory];
-  }
-
-  // Undo last change
-  undo(): boolean {
-    if (this.stateHistory.length === 0) {
-      return false;
-    }
-    
-    const lastChange = this.stateHistory.pop()!;
-    this.state[lastChange.path] = lastChange.oldValue;
-    
-    return true;
-  }
-
-  private triggerWatchers(path: string, newValue: any, oldValue: any): void {
-    const watchers = this.watchers.get(path);
-    if (watchers) {
-      watchers.forEach(callback => {
-        try {
-          callback(newValue, oldValue);
-        } catch (error) {
-          console.error('Watcher error:', error);
+      // Execute the intent via server rendering
+      const renderResult = await this.server.render({
+        intent: {
+          name: step.intentName,
+          parameters: stepInput
         }
       });
-    }
-  }
-}
 
-// Example usage of reactive component
-export class InteractiveForm extends ReactiveComponent {
-  constructor() {
-    super({
-      formData: {},
-      errors: {},
-      isValid: false,
-      isSubmitting: false
-    });
-
-    this.setupValidation();
-    this.setupComputedProperties();
-  }
-
-  private setupValidation(): void {
-    // Watch form data changes for validation
-    this.watch('formData', (formData) => {
-      this.validateForm(formData);
-    });
-  }
-
-  private setupComputedProperties(): void {
-    // Computed property for form validity
-    this.computed('isValid', () => {
-      const errors = this.state.errors;
-      return Object.keys(errors).length === 0;
-    });
-
-    // Computed property for submit button text
-    this.computed('submitButtonText', () => {
-      return this.state.isSubmitting ? 'Submitting...' : 'Submit';
-    });
-  }
-
-  private validateForm(formData: any): void {
-    const errors: any = {};
-
-    // Example validation rules
-    if (!formData.email || !formData.email.includes('@')) {
-      errors.email = 'Valid email is required';
-    }
-
-    if (!formData.name || formData.name.length < 2) {
-      errors.name = 'Name must be at least 2 characters';
-    }
-
-    this.setState({ errors });
-  }
-
-  async submitForm(): Promise<void> {
-    if (!this.state.isValid) {
-      return;
-    }
-
-    this.setState({ isSubmitting: true });
-
-    try {
-      // Simulate form submission
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      this.emit('form:submitted', this.state.formData);
-      this.setState({ isSubmitting: false });
-    } catch (error) {
-      this.setState({ 
-        isSubmitting: false,
-        errors: { submit: 'Submission failed. Please try again.' }
-      });
-    }
-  }
-}
-```
-
-## Custom Middleware Pipeline
-
-### Advanced Middleware Chain
-
-```typescript
-// middleware/AdvancedMiddlewareChain.ts
-import { Request, Response, NextFunction } from 'express';
-
-interface MiddlewareContext {
-  startTime: number;
-  requestId: string;
-  user?: any;
-  metadata: Record<string, any>;
-}
-
-interface AdvancedMiddleware {
-  name: string;
-  priority: number;
-  condition?: (req: Request) => boolean;
-  before?: (req: Request, res: Response, context: MiddlewareContext) => Promise<void>;
-  after?: (req: Request, res: Response, context: MiddlewareContext) => Promise<void>;
-  error?: (error: Error, req: Request, res: Response, context: MiddlewareContext) => Promise<void>;
-}
-
-export class AdvancedMiddlewareChain {
-  private middlewares: AdvancedMiddleware[] = [];
-  private contexts = new WeakMap<Request, MiddlewareContext>();
-
-  register(middleware: AdvancedMiddleware): void {
-    this.middlewares.push(middleware);
-    // Sort by priority (higher priority first)
-    this.middlewares.sort((a, b) => b.priority - a.priority);
-  }
-
-  createHandler() {
-    return async (req: Request, res: Response, next: NextFunction) => {
-      const context: MiddlewareContext = {
-        startTime: Date.now(),
-        requestId: this.generateRequestId(),
-        metadata: {}
-      };
-      
-      this.contexts.set(req, context);
-
-      try {
-        // Execute before hooks
-        await this.executeBefore(req, res, context);
-        
-        // Set up after hooks to run when response finishes
-        res.on('finish', () => {
-          this.executeAfter(req, res, context);
-        });
-        
-        next();
-      } catch (error) {
-        await this.executeError(error as Error, req, res, context);
-      }
-    };
-  }
-
-  private async executeBefore(
-    req: Request,
-    res: Response,
-    context: MiddlewareContext
-  ): Promise<void> {
-    for (const middleware of this.middlewares) {
-      if (middleware.condition && !middleware.condition(req)) {
-        continue;
-      }
-      
-      if (middleware.before) {
-        await middleware.before(req, res, context);
-      }
-    }
-  }
-
-  private async executeAfter(
-    req: Request,
-    res: Response,
-    context: MiddlewareContext
-  ): Promise<void> {
-    // Execute in reverse order
-    for (let i = this.middlewares.length - 1; i >= 0; i--) {
-      const middleware = this.middlewares[i];
-      
-      if (middleware.condition && !middleware.condition(req)) {
-        continue;
-      }
-      
-      if (middleware.after) {
-        try {
-          await middleware.after(req, res, context);
-        } catch (error) {
-          console.error(`After hook error in ${middleware.name}:`, error);
-        }
-      }
-    }
-  }
-
-  private async executeError(
-    error: Error,
-    req: Request,
-    res: Response,
-    context: MiddlewareContext
-  ): Promise<void> {
-    for (const middleware of this.middlewares) {
-      if (middleware.error) {
-        try {
-          await middleware.error(error, req, res, context);
-        } catch (hookError) {
-          console.error(`Error hook failed in ${middleware.name}:`, hookError);
-        }
-      }
-    }
-    
-    // If no middleware handled the error, send default response
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal Server Error' });
-    }
-  }
-
-  private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-}
-```
-
-### Security Middleware Suite
-
-```typescript
-// middleware/SecurityMiddleware.ts
-import rateLimit from 'express-rate-limit';
-import helmet from 'helmet';
-import { Request, Response } from 'express';
-
-export class SecurityMiddleware {
-  // Rate limiting with different tiers
-  static createRateLimiter(tier: 'basic' | 'premium' | 'enterprise') {
-    const configs = {
-      basic: { windowMs: 15 * 60 * 1000, max: 100 },
-      premium: { windowMs: 15 * 60 * 1000, max: 1000 },
-      enterprise: { windowMs: 15 * 60 * 1000, max: 10000 }
-    };
-
-    return rateLimit({
-      ...configs[tier],
-      keyGenerator: (req: Request) => {
-        // Use user ID if authenticated, otherwise IP
-        return req.user?.id || req.ip;
-      },
-      handler: (req: Request, res: Response) => {
-        res.status(429).json({
-          error: 'Too many requests',
-          retryAfter: Math.ceil(configs[tier].windowMs / 1000)
-        });
-      }
-    });
-  }
-
-  // Input sanitization
-  static sanitizeInput() {
-    return (req: Request, res: Response, next: Function) => {
-      const sanitize = (obj: any): any => {
-        if (typeof obj === 'string') {
-          return obj
-            .replace(/<script[^>]*>.*?<\/script>/gi, '')
-            .replace(/<[^>]*>/g, '')
-            .trim();
-        }
-        
-        if (Array.isArray(obj)) {
-          return obj.map(sanitize);
-        }
-        
-        if (obj && typeof obj === 'object') {
-          const sanitized: any = {};
-          for (const [key, value] of Object.entries(obj)) {
-            sanitized[key] = sanitize(value);
-          }
-          return sanitized;
-        }
-        
-        return obj;
+      return {
+        id: step.id,
+        status: 'completed',
+        result: renderResult,
+        duration: Date.now() - stepStartTime
       };
 
-      if (req.body) {
-        req.body = sanitize(req.body);
-      }
-      
-      if (req.query) {
-        req.query = sanitize(req.query);
-      }
-      
-      next();
-    };
-  }
-
-  // JWT validation with refresh
-  static jwtAuth(options: { secret: string; refreshSecret: string }) {
-    return async (req: Request, res: Response, next: Function) => {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      
-      if (!token) {
-        return res.status(401).json({ error: 'No token provided' });
-      }
-
-      try {
-        const decoded = jwt.verify(token, options.secret);
-        req.user = decoded;
-        next();
-      } catch (error) {
-        if (error.name === 'TokenExpiredError') {
-          // Try to refresh token
-          const refreshToken = req.headers['x-refresh-token'];
-          if (refreshToken) {
-            try {
-              const refreshDecoded = jwt.verify(refreshToken, options.refreshSecret);
-              const newToken = jwt.sign(
-                { userId: refreshDecoded.userId },
-                options.secret,
-                { expiresIn: '1h' }
-              );
-              
-              res.setHeader('X-New-Token', newToken);
-              req.user = refreshDecoded;
-              next();
-            } catch (refreshError) {
-              res.status(401).json({ error: 'Invalid refresh token' });
-            }
-          } else {
-            res.status(401).json({ error: 'Token expired' });
-          }
-        } else {
-          res.status(401).json({ error: 'Invalid token' });
-        }
-      }
-    };
-  }
-
-  // Request validation
-  static validateRequest(schema: any) {
-    return (req: Request, res: Response, next: Function) => {
-      const { error } = schema.validate({
-        body: req.body,
-        query: req.query,
-        params: req.params
-      });
-
-      if (error) {
-        return res.status(400).json({
-          error: 'Validation failed',
-          details: error.details.map((d: any) => d.message)
-        });
-      }
-
-      next();
-    };
-  }
-}
-```
-
-## Plugin Ecosystem
-
-### Plugin Manager with Hot Reloading
-
-```typescript
-// plugins/PluginManager.ts
-import { EventEmitter } from 'events';
-import { watch } from 'fs';
-import { Plugin, IXPServer } from '@ixp/server-sdk';
-
-interface PluginMetadata {
-  id: string;
-  name: string;
-  version: string;
-  author: string;
-  description: string;
-  dependencies: string[];
-  permissions: string[];
-  config?: Record<string, any>;
-}
-
-interface LoadedPlugin {
-  metadata: PluginMetadata;
-  instance: Plugin;
-  filePath: string;
-  loadTime: number;
-  isActive: boolean;
-}
-
-export class PluginManager extends EventEmitter {
-  private plugins = new Map<string, LoadedPlugin>();
-  private watchers = new Map<string, any>();
-  private server: IXPServer;
-  private hotReloadEnabled = false;
-
-  constructor(server: IXPServer, options: { hotReload?: boolean } = {}) {
-    super();
-    this.server = server;
-    this.hotReloadEnabled = options.hotReload || false;
-  }
-
-  async loadPlugin(filePath: string): Promise<void> {
-    try {
-      // Clear require cache for hot reloading
-      if (require.cache[filePath]) {
-        delete require.cache[filePath];
-      }
-
-      const pluginModule = require(filePath);
-      const PluginClass = pluginModule.default || pluginModule;
-      
-      if (!PluginClass || typeof PluginClass !== 'function') {
-        throw new Error('Plugin must export a class');
-      }
-
-      const instance = new PluginClass();
-      
-      if (!instance.metadata) {
-        throw new Error('Plugin must have metadata');
-      }
-
-      const metadata = instance.metadata as PluginMetadata;
-      
-      // Check dependencies
-      await this.checkDependencies(metadata.dependencies);
-      
-      // Initialize plugin
-      await instance.initialize(this.server);
-      
-      const loadedPlugin: LoadedPlugin = {
-        metadata,
-        instance,
-        filePath,
-        loadTime: Date.now(),
-        isActive: true
-      };
-      
-      this.plugins.set(metadata.id, loadedPlugin);
-      
-      // Set up hot reloading
-      if (this.hotReloadEnabled) {
-        this.setupHotReload(filePath, metadata.id);
-      }
-      
-      this.emit('plugin:loaded', loadedPlugin);
-      console.log(`Plugin loaded: ${metadata.name} v${metadata.version}`);
-      
     } catch (error) {
-      console.error(`Failed to load plugin from ${filePath}:`, error);
-      throw error;
-    }
-  }
-
-  async unloadPlugin(pluginId: string): Promise<void> {
-    const plugin = this.plugins.get(pluginId);
-    if (!plugin) {
-      throw new Error(`Plugin not found: ${pluginId}`);
-    }
-
-    try {
-      // Cleanup plugin
-      if (plugin.instance.destroy) {
-        await plugin.instance.destroy();
-      }
-      
-      // Stop watching for changes
-      const watcher = this.watchers.get(pluginId);
-      if (watcher) {
-        watcher.close();
-        this.watchers.delete(pluginId);
-      }
-      
-      // Clear from cache
-      if (require.cache[plugin.filePath]) {
-        delete require.cache[plugin.filePath];
-      }
-      
-      this.plugins.delete(pluginId);
-      
-      this.emit('plugin:unloaded', plugin);
-      console.log(`Plugin unloaded: ${plugin.metadata.name}`);
-      
-    } catch (error) {
-      console.error(`Failed to unload plugin ${pluginId}:`, error);
-      throw error;
-    }
-  }
-
-  async reloadPlugin(pluginId: string): Promise<void> {
-    const plugin = this.plugins.get(pluginId);
-    if (!plugin) {
-      throw new Error(`Plugin not found: ${pluginId}`);
-    }
-
-    const filePath = plugin.filePath;
-    
-    await this.unloadPlugin(pluginId);
-    await this.loadPlugin(filePath);
-    
-    this.emit('plugin:reloaded', pluginId);
-  }
-
-  getPlugin(pluginId: string): LoadedPlugin | undefined {
-    return this.plugins.get(pluginId);
-  }
-
-  getAllPlugins(): LoadedPlugin[] {
-    return Array.from(this.plugins.values());
-  }
-
-  getActivePlugins(): LoadedPlugin[] {
-    return this.getAllPlugins().filter(p => p.isActive);
-  }
-
-  async activatePlugin(pluginId: string): Promise<void> {
-    const plugin = this.plugins.get(pluginId);
-    if (!plugin) {
-      throw new Error(`Plugin not found: ${pluginId}`);
-    }
-
-    if (plugin.isActive) {
-      return;
-    }
-
-    if (plugin.instance.activate) {
-      await plugin.instance.activate();
-    }
-    
-    plugin.isActive = true;
-    this.emit('plugin:activated', plugin);
-  }
-
-  async deactivatePlugin(pluginId: string): Promise<void> {
-    const plugin = this.plugins.get(pluginId);
-    if (!plugin) {
-      throw new Error(`Plugin not found: ${pluginId}`);
-    }
-
-    if (!plugin.isActive) {
-      return;
-    }
-
-    if (plugin.instance.deactivate) {
-      await plugin.instance.deactivate();
-    }
-    
-    plugin.isActive = false;
-    this.emit('plugin:deactivated', plugin);
-  }
-
-  private async checkDependencies(dependencies: string[]): Promise<void> {
-    for (const dep of dependencies) {
-      if (!this.plugins.has(dep)) {
-        throw new Error(`Missing dependency: ${dep}`);
-      }
-      
-      const depPlugin = this.plugins.get(dep)!;
-      if (!depPlugin.isActive) {
-        throw new Error(`Dependency not active: ${dep}`);
-      }
-    }
-  }
-
-  private setupHotReload(filePath: string, pluginId: string): void {
-    const watcher = watch(filePath, (eventType) => {
-      if (eventType === 'change') {
-        console.log(`Plugin file changed: ${filePath}`);
-        
-        // Debounce reloads
-        setTimeout(async () => {
-          try {
-            await this.reloadPlugin(pluginId);
-            console.log(`Plugin hot-reloaded: ${pluginId}`);
-          } catch (error) {
-            console.error(`Hot reload failed for ${pluginId}:`, error);
-          }
-        }, 1000);
-      }
-    });
-    
-    this.watchers.set(pluginId, watcher);
-  }
-}
-```
-
-### Advanced Analytics Plugin
-
-```typescript
-// plugins/AdvancedAnalyticsPlugin.ts
-import { Plugin, IXPServer } from '@ixp/server-sdk';
-import { EventEmitter } from 'events';
-
-interface AnalyticsEvent {
-  id: string;
-  type: string;
-  timestamp: number;
-  userId?: string;
-  sessionId?: string;
-  data: Record<string, any>;
-  metadata: {
-    userAgent?: string;
-    ip?: string;
-    referer?: string;
-  };
-}
-
-interface MetricAggregation {
-  count: number;
-  sum: number;
-  avg: number;
-  min: number;
-  max: number;
-  percentiles: {
-    p50: number;
-    p90: number;
-    p95: number;
-    p99: number;
-  };
-}
-
-export class AdvancedAnalyticsPlugin implements Plugin {
-  name = 'advanced-analytics';
-  version = '2.0.0';
-  
-  metadata = {
-    id: 'advanced-analytics',
-    name: 'Advanced Analytics',
-    version: '2.0.0',
-    author: 'IXP Team',
-    description: 'Comprehensive analytics and metrics collection',
-    dependencies: [],
-    permissions: ['read:requests', 'write:metrics']
-  };
-
-  private events: AnalyticsEvent[] = [];
-  private metrics = new Map<string, number[]>();
-  private realTimeMetrics = new EventEmitter();
-  private aggregationInterval: NodeJS.Timeout;
-  private server: IXPServer;
-
-  async initialize(server: IXPServer): Promise<void> {
-    this.server = server;
-    
-    // Track all requests
-    server.use((req, res, next) => {
-      const startTime = Date.now();
-      
-      res.on('finish', () => {
-        const duration = Date.now() - startTime;
-        
-        this.trackEvent({
-          type: 'request',
-          data: {
-            method: req.method,
-            url: req.url,
-            statusCode: res.statusCode,
-            duration,
-            contentLength: res.get('content-length') || 0
-          },
-          userId: req.user?.id,
-          sessionId: req.sessionID,
-          metadata: {
-            userAgent: req.get('user-agent'),
-            ip: req.ip,
-            referer: req.get('referer')
-          }
-        });
-        
-        this.recordMetric('request_duration', duration);
-        this.recordMetric(`status_${res.statusCode}`, 1);
-      });
-      
-      next();
-    });
-
-    // Track intent processing
-    server.on('intent:processed', (data) => {
-      this.trackEvent({
-        type: 'intent_processed',
-        data: {
-          intentName: data.intentName,
-          confidence: data.confidence,
-          processingTime: data.processingTime
-        },
-        userId: data.userId,
-        sessionId: data.sessionId
-      });
-    });
-
-    // Set up real-time aggregation
-    this.aggregationInterval = setInterval(() => {
-      this.aggregateMetrics();
-    }, 60000); // Every minute
-
-    // Add analytics endpoints
-    this.setupEndpoints();
-    
-    console.log('Advanced Analytics Plugin initialized');
-  }
-
-  async destroy(): Promise<void> {
-    if (this.aggregationInterval) {
-      clearInterval(this.aggregationInterval);
-    }
-    
-    // Export final metrics
-    await this.exportMetrics();
-    
-    console.log('Advanced Analytics Plugin destroyed');
-  }
-
-  private trackEvent(eventData: Partial<AnalyticsEvent>): void {
-    const event: AnalyticsEvent = {
-      id: this.generateEventId(),
-      timestamp: Date.now(),
-      metadata: {},
-      ...eventData
-    } as AnalyticsEvent;
-    
-    this.events.push(event);
-    
-    // Emit real-time event
-    this.realTimeMetrics.emit('event', event);
-    
-    // Keep only last 10000 events in memory
-    if (this.events.length > 10000) {
-      this.events = this.events.slice(-10000);
-    }
-  }
-
-  private recordMetric(name: string, value: number): void {
-    if (!this.metrics.has(name)) {
-      this.metrics.set(name, []);
-    }
-    
-    const values = this.metrics.get(name)!;
-    values.push(value);
-    
-    // Keep only last 1000 values per metric
-    if (values.length > 1000) {
-      values.shift();
-    }
-  }
-
-  private aggregateMetrics(): void {
-    const aggregations = new Map<string, MetricAggregation>();
-    
-    for (const [name, values] of this.metrics) {
-      if (values.length === 0) continue;
-      
-      const sorted = [...values].sort((a, b) => a - b);
-      const sum = values.reduce((a, b) => a + b, 0);
-      
-      aggregations.set(name, {
-        count: values.length,
-        sum,
-        avg: sum / values.length,
-        min: sorted[0],
-        max: sorted[sorted.length - 1],
-        percentiles: {
-          p50: sorted[Math.floor(sorted.length * 0.5)],
-          p90: sorted[Math.floor(sorted.length * 0.9)],
-          p95: sorted[Math.floor(sorted.length * 0.95)],
-          p99: sorted[Math.floor(sorted.length * 0.99)]
-        }
-      });
-    }
-    
-    // Emit aggregated metrics
-    this.realTimeMetrics.emit('aggregation', aggregations);
-  }
-
-  private setupEndpoints(): void {
-    // Real-time metrics endpoint
-    this.server.get('/analytics/realtime', (req, res) => {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      });
-      
-      const sendEvent = (data: any) => {
-        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      return {
+        id: step.id,
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        duration: Date.now() - stepStartTime
       };
-      
-      this.realTimeMetrics.on('event', sendEvent);
-      this.realTimeMetrics.on('aggregation', sendEvent);
-      
-      req.on('close', () => {
-        this.realTimeMetrics.off('event', sendEvent);
-        this.realTimeMetrics.off('aggregation', sendEvent);
-      });
-    });
-
-    // Metrics summary endpoint
-    this.server.get('/analytics/metrics', (req, res) => {
-      const summary = {};
-      
-      for (const [name, values] of this.metrics) {
-        if (values.length > 0) {
-          const sorted = [...values].sort((a, b) => a - b);
-          const sum = values.reduce((a, b) => a + b, 0);
-          
-          summary[name] = {
-            count: values.length,
-            avg: sum / values.length,
-            min: sorted[0],
-            max: sorted[sorted.length - 1],
-            p95: sorted[Math.floor(sorted.length * 0.95)]
-          };
-        }
-      }
-      
-      res.json(summary);
-    });
-
-    // Events query endpoint
-    this.server.get('/analytics/events', (req, res) => {
-      const { type, userId, limit = 100, offset = 0 } = req.query;
-      
-      let filteredEvents = this.events;
-      
-      if (type) {
-        filteredEvents = filteredEvents.filter(e => e.type === type);
-      }
-      
-      if (userId) {
-        filteredEvents = filteredEvents.filter(e => e.userId === userId);
-      }
-      
-      const paginatedEvents = filteredEvents
-        .slice(Number(offset), Number(offset) + Number(limit));
-      
-      res.json({
-        events: paginatedEvents,
-        total: filteredEvents.length,
-        offset: Number(offset),
-        limit: Number(limit)
-      });
-    });
+    }
   }
 
-  private async exportMetrics(): Promise<void> {
-    // Export to external analytics service
-    const exportData = {
-      timestamp: Date.now(),
-      metrics: Object.fromEntries(this.metrics),
-      events: this.events.slice(-1000) // Last 1000 events
-    };
+  private combineResults(results: Map<string, any>): any {
+    const combined: any = {};
     
-    // In a real implementation, send to external service
-    console.log('Exporting analytics data:', {
-      metricsCount: this.metrics.size,
-      eventsCount: exportData.events.length
-    });
-  }
-
-  private generateEventId(): string {
-    return `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    for (const [stepId, result] of results) {
+      if (result && typeof result === 'object') {
+        combined[stepId] = result;
+      }
+    }
+    
+    return combined;
   }
 }
 ```
@@ -1982,133 +807,842 @@ export class AdvancedCacheSystem<T = any> extends EventEmitter {
 }
 ```
 
-### Usage Example
+## Security Implementation
+
+### Input Validation and Sanitization
 
 ```typescript
-// Advanced server setup
-const server = new IXPServer({
-  port: 3000,
+// security/InputValidator.ts
+import { Request, Response, NextFunction } from 'express';
+
+interface ValidationRule {
+  field: string;
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: RegExp;
+  sanitize?: boolean;
+  allowedValues?: any[];
+}
+
+interface ValidationSchema {
+  body?: ValidationRule[];
+  query?: ValidationRule[];
+  params?: ValidationRule[];
+}
+
+export class InputValidator {
+  static validate(schema: ValidationSchema) {
+    return (req: Request, res: Response, next: NextFunction) => {
+      const errors: string[] = [];
+
+      // Validate body
+      if (schema.body) {
+        const bodyErrors = this.validateObject(req.body, schema.body, 'body');
+        errors.push(...bodyErrors);
+      }
+
+      // Validate query parameters
+      if (schema.query) {
+        const queryErrors = this.validateObject(req.query, schema.query, 'query');
+        errors.push(...queryErrors);
+      }
+
+      // Validate URL parameters
+      if (schema.params) {
+        const paramErrors = this.validateObject(req.params, schema.params, 'params');
+        errors.push(...paramErrors);
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: errors
+        });
+      }
+
+      next();
+    };
+  }
+
+  private static validateObject(
+    obj: any,
+    rules: ValidationRule[],
+    context: string
+  ): string[] {
+    const errors: string[] = [];
+
+    for (const rule of rules) {
+      const value = obj[rule.field];
+      const fieldPath = `${context}.${rule.field}`;
+
+      // Check required fields
+      if (rule.required && (value === undefined || value === null)) {
+        errors.push(`${fieldPath} is required`);
+        continue;
+      }
+
+      // Skip validation if field is not present and not required
+      if (value === undefined || value === null) {
+        continue;
+      }
+
+      // Type validation
+      if (!this.validateType(value, rule.type)) {
+        errors.push(`${fieldPath} must be of type ${rule.type}`);
+        continue;
+      }
+
+      // String-specific validations
+      if (rule.type === 'string' && typeof value === 'string') {
+        if (rule.minLength && value.length < rule.minLength) {
+          errors.push(`${fieldPath} must be at least ${rule.minLength} characters`);
+        }
+        if (rule.maxLength && value.length > rule.maxLength) {
+          errors.push(`${fieldPath} must be no more than ${rule.maxLength} characters`);
+        }
+        if (rule.pattern && !rule.pattern.test(value)) {
+          errors.push(`${fieldPath} format is invalid`);
+        }
+      }
+
+      // Allowed values validation
+      if (rule.allowedValues && !rule.allowedValues.includes(value)) {
+        errors.push(`${fieldPath} must be one of: ${rule.allowedValues.join(', ')}`);
+      }
+
+      // Sanitize if requested
+      if (rule.sanitize && typeof value === 'string') {
+        obj[rule.field] = this.sanitizeString(value);
+      }
+    }
+
+    return errors;
+  }
+
+  private static validateType(value: any, type: string): boolean {
+    switch (type) {
+      case 'string':
+        return typeof value === 'string';
+      case 'number':
+        return typeof value === 'number' && !isNaN(value);
+      case 'boolean':
+        return typeof value === 'boolean';
+      case 'array':
+        return Array.isArray(value);
+      case 'object':
+        return typeof value === 'object' && value !== null && !Array.isArray(value);
+      default:
+        return false;
+    }
+  }
+
+  private static sanitizeString(input: string): string {
+    return input
+      .replace(/<script[^>]*>.*?<\/script>/gi, '') // Remove script tags
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/javascript:/gi, '') // Remove javascript: protocol
+      .replace(/on\w+\s*=/gi, '') // Remove event handlers
+      .trim();
+  }
+}
+```
+
+## Real-time Data Integration
+
+### WebSocket Integration
+
+```typescript
+// realtime/WebSocketManager.ts
+import { Server as SocketIOServer } from 'socket.io';
+import { Server as HTTPServer } from 'http';
+import { IXPServer } from 'ixp-server';
+
+interface SocketSession {
+  id: string;
+  userId?: string;
+  rooms: Set<string>;
+  metadata: Record<string, any>;
+  connectedAt: number;
+}
+
+export class WebSocketManager {
+  private io: SocketIOServer;
+  private sessions = new Map<string, SocketSession>();
+  private server: IXPServer;
+
+  constructor(httpServer: HTTPServer, ixpServer: IXPServer) {
+    this.server = ixpServer;
+    this.io = new SocketIOServer(httpServer, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+      }
+    });
+
+    this.setupEventHandlers();
+  }
+
+  private setupEventHandlers(): void {
+    this.io.on('connection', (socket) => {
+      console.log(`Client connected: ${socket.id}`);
+
+      // Create session
+      const session: SocketSession = {
+        id: socket.id,
+        rooms: new Set(),
+        metadata: {},
+        connectedAt: Date.now()
+      };
+      this.sessions.set(socket.id, session);
+
+      // Handle authentication
+      socket.on('authenticate', async (data) => {
+        try {
+          const { token } = data;
+          // Validate token and get user info
+          const user = await this.validateToken(token);
+          session.userId = user.id;
+          session.metadata.user = user;
+          
+          socket.emit('authenticated', { success: true, user });
+        } catch (error) {
+          socket.emit('authentication_error', { 
+            error: error instanceof Error ? error.message : 'Authentication failed' 
+          });
+        }
+      });
+
+      // Handle room joining
+      socket.on('join_room', (roomName: string) => {
+        socket.join(roomName);
+        session.rooms.add(roomName);
+        socket.emit('joined_room', { room: roomName });
+      });
+
+      // Handle room leaving
+      socket.on('leave_room', (roomName: string) => {
+        socket.leave(roomName);
+        session.rooms.delete(roomName);
+        socket.emit('left_room', { room: roomName });
+      });
+
+      // Handle real-time intent processing
+      socket.on('process_intent', async (data) => {
+        try {
+          const { intent, parameters } = data;
+          
+          // Process intent through IXP server
+          const result = await this.server.render({
+            intent: {
+              name: intent,
+              parameters
+            }
+          });
+
+          socket.emit('intent_result', {
+            success: true,
+            result,
+            requestId: data.requestId
+          });
+
+          // Broadcast to relevant rooms if needed
+          if (data.broadcast) {
+            this.broadcastToRooms(data.broadcast.rooms, 'intent_broadcast', {
+              intent,
+              result,
+              from: session.userId
+            });
+          }
+
+        } catch (error) {
+          socket.emit('intent_error', {
+            error: error instanceof Error ? error.message : 'Intent processing failed',
+            requestId: data.requestId
+          });
+        }
+      });
+
+      // Handle disconnection
+      socket.on('disconnect', () => {
+        console.log(`Client disconnected: ${socket.id}`);
+        this.sessions.delete(socket.id);
+      });
+    });
+  }
+
+  // Broadcast to specific rooms
+  broadcastToRooms(rooms: string[], event: string, data: any): void {
+    for (const room of rooms) {
+      this.io.to(room).emit(event, data);
+    }
+  }
+
+  // Broadcast to all connected clients
+  broadcast(event: string, data: any): void {
+    this.io.emit(event, data);
+  }
+
+  // Send to specific user
+  sendToUser(userId: string, event: string, data: any): boolean {
+    const session = Array.from(this.sessions.values())
+      .find(s => s.userId === userId);
+    
+    if (session) {
+      this.io.to(session.id).emit(event, data);
+      return true;
+    }
+    
+    return false;
+  }
+
+  // Get connected users count
+  getConnectedUsersCount(): number {
+    return Array.from(this.sessions.values())
+      .filter(s => s.userId).length;
+  }
+
+  // Get sessions by room
+  getSessionsByRoom(roomName: string): SocketSession[] {
+    return Array.from(this.sessions.values())
+      .filter(s => s.rooms.has(roomName));
+  }
+
+  private async validateToken(token: string): Promise<any> {
+    // Implement token validation logic
+    // This should integrate with your authentication system
+    throw new Error('Token validation not implemented');
+  }
+}
+```
+
+## Advanced Error Handling
+
+### Comprehensive Error Management
+
+```typescript
+// errors/ErrorManager.ts
+import { Request, Response, NextFunction } from 'express';
+import { EventEmitter } from 'events';
+
+interface ErrorContext {
+  requestId: string;
+  userId?: string;
+  timestamp: number;
+  url: string;
+  method: string;
+  userAgent?: string;
+  ip: string;
+}
+
+interface ErrorReport {
+  id: string;
+  error: Error;
+  context: ErrorContext;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  category: string;
+  handled: boolean;
+}
+
+export class ErrorManager extends EventEmitter {
+  private errorReports: ErrorReport[] = [];
+  private errorCounts = new Map<string, number>();
+  private rateLimits = new Map<string, number>();
+
+  constructor() {
+    super();
+    this.setupGlobalErrorHandlers();
+  }
+
+  // Express error middleware
+  middleware() {
+    return (error: Error, req: Request, res: Response, next: NextFunction) => {
+      const context: ErrorContext = {
+        requestId: this.generateRequestId(),
+        userId: (req as any).user?.id,
+        timestamp: Date.now(),
+        url: req.url,
+        method: req.method,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      };
+
+      const report = this.createErrorReport(error, context);
+      this.handleError(report);
+
+      // Send appropriate response
+      if (!res.headersSent) {
+        const statusCode = this.getStatusCode(error);
+        const response = this.formatErrorResponse(error, report.id, statusCode);
+        res.status(statusCode).json(response);
+      }
+    };
+  }
+
+  // Handle different types of errors
+  private createErrorReport(error: Error, context: ErrorContext): ErrorReport {
+    const report: ErrorReport = {
+      id: this.generateErrorId(),
+      error,
+      context,
+      severity: this.determineSeverity(error),
+      category: this.categorizeError(error),
+      handled: false
+    };
+
+    this.errorReports.push(report);
+    
+    // Keep only last 1000 error reports
+    if (this.errorReports.length > 1000) {
+      this.errorReports = this.errorReports.slice(-1000);
+    }
+
+    return report;
+  }
+
+  private handleError(report: ErrorReport): void {
+    // Update error counts
+    const errorKey = `${report.category}:${report.error.name}`;
+    this.errorCounts.set(errorKey, (this.errorCounts.get(errorKey) || 0) + 1);
+
+    // Check for error rate limiting
+    if (this.shouldRateLimit(errorKey)) {
+      console.warn(`Error rate limit exceeded for ${errorKey}`);
+      return;
+    }
+
+    // Log error based on severity
+    this.logError(report);
+
+    // Emit error event for external handlers
+    this.emit('error', report);
+
+    // Handle critical errors
+    if (report.severity === 'critical') {
+      this.handleCriticalError(report);
+    }
+
+    report.handled = true;
+  }
+
+  private determineSeverity(error: Error): 'low' | 'medium' | 'high' | 'critical' {
+    // Determine severity based on error type and message
+    if (error.name === 'ValidationError') return 'low';
+    if (error.name === 'UnauthorizedError') return 'medium';
+    if (error.name === 'DatabaseError') return 'high';
+    if (error.message.includes('ECONNREFUSED')) return 'critical';
+    if (error.message.includes('out of memory')) return 'critical';
+    
+    return 'medium';
+  }
+
+  private categorizeError(error: Error): string {
+    // Categorize errors for better organization
+    if (error.name.includes('Validation')) return 'validation';
+    if (error.name.includes('Auth')) return 'authentication';
+    if (error.name.includes('Database')) return 'database';
+    if (error.name.includes('Network')) return 'network';
+    if (error.name.includes('Permission')) return 'authorization';
+    
+    return 'general';
+  }
+
+  private getStatusCode(error: Error): number {
+    // Map error types to HTTP status codes
+    if (error.name === 'ValidationError') return 400;
+    if (error.name === 'UnauthorizedError') return 401;
+    if (error.name === 'ForbiddenError') return 403;
+    if (error.name === 'NotFoundError') return 404;
+    if (error.name === 'ConflictError') return 409;
+    if (error.name === 'RateLimitError') return 429;
+    
+    return 500;
+  }
+
+  private formatErrorResponse(error: Error, errorId: string, statusCode: number): any {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    const response: any = {
+      error: {
+        id: errorId,
+        message: error.message,
+        type: error.name,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    // Include stack trace in development
+    if (isDevelopment) {
+      response.error.stack = error.stack;
+    }
+
+    // Add helpful information for specific error types
+    if (statusCode === 400) {
+      response.error.hint = 'Please check your request parameters and try again.';
+    } else if (statusCode === 401) {
+      response.error.hint = 'Please authenticate and try again.';
+    } else if (statusCode === 403) {
+      response.error.hint = 'You do not have permission to perform this action.';
+    } else if (statusCode === 429) {
+      response.error.hint = 'Too many requests. Please wait before trying again.';
+    }
+
+    return response;
+  }
+
+  private logError(report: ErrorReport): void {
+    const logLevel = this.getLogLevel(report.severity);
+    const logMessage = this.formatLogMessage(report);
+
+    switch (logLevel) {
+      case 'error':
+        console.error(logMessage);
+        break;
+      case 'warn':
+        console.warn(logMessage);
+        break;
+      case 'info':
+        console.info(logMessage);
+        break;
+      default:
+        console.log(logMessage);
+    }
+  }
+
+  private getLogLevel(severity: string): string {
+    switch (severity) {
+      case 'critical':
+      case 'high':
+        return 'error';
+      case 'medium':
+        return 'warn';
+      case 'low':
+        return 'info';
+      default:
+        return 'log';
+    }
+  }
+
+  private formatLogMessage(report: ErrorReport): string {
+    return `[${report.severity.toUpperCase()}] ${report.category}/${report.error.name}: ${report.error.message} (ID: ${report.id}, User: ${report.context.userId || 'anonymous'}, URL: ${report.context.url})`;
+  }
+
+  private shouldRateLimit(errorKey: string): boolean {
+    const count = this.errorCounts.get(errorKey) || 0;
+    const limit = this.rateLimits.get(errorKey) || 10; // Default limit
+    
+    return count > limit;
+  }
+
+  private handleCriticalError(report: ErrorReport): void {
+    // Handle critical errors - could send alerts, notifications, etc.
+    console.error(`🚨 CRITICAL ERROR: ${report.error.message}`);
+    
+    // In a real application, you might:
+    // - Send alerts to monitoring systems
+    // - Notify administrators
+    // - Trigger automated recovery procedures
+    
+    this.emit('critical_error', report);
+  }
+
+  private setupGlobalErrorHandlers(): void {
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      const context: ErrorContext = {
+        requestId: 'global',
+        timestamp: Date.now(),
+        url: 'N/A',
+        method: 'N/A',
+        ip: 'N/A'
+      };
+      
+      const report = this.createErrorReport(error, context);
+      report.severity = 'critical';
+      this.handleError(report);
+      
+      // Exit process after logging
+      process.exit(1);
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      const error = reason instanceof Error ? reason : new Error(String(reason));
+      
+      const context: ErrorContext = {
+        requestId: 'promise',
+        timestamp: Date.now(),
+        url: 'N/A',
+        method: 'N/A',
+        ip: 'N/A'
+      };
+      
+      const report = this.createErrorReport(error, context);
+      report.severity = 'high';
+      this.handleError(report);
+    });
+  }
+
+  // Utility methods
+  private generateRequestId(): string {
+    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateErrorId(): string {
+    return `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Public methods for monitoring
+  getErrorStats(): any {
+    return {
+      totalErrors: this.errorReports.length,
+      errorsByCategory: this.getErrorsByCategory(),
+      errorsBySeverity: this.getErrorsBySeverity(),
+      recentErrors: this.errorReports.slice(-10)
+    };
+  }
+
+  private getErrorsByCategory(): Record<string, number> {
+    const categories: Record<string, number> = {};
+    
+    for (const report of this.errorReports) {
+      categories[report.category] = (categories[report.category] || 0) + 1;
+    }
+    
+    return categories;
+  }
+
+  private getErrorsBySeverity(): Record<string, number> {
+    const severities: Record<string, number> = {};
+    
+    for (const report of this.errorReports) {
+      severities[report.severity] = (severities[report.severity] || 0) + 1;
+    }
+    
+    return severities;
+  }
+}
+```
+
+## Complete Advanced Server Example
+
+```typescript
+// examples/CompleteAdvancedServer.ts
+import { IXPServer } from 'ixp-server';
+import { createServer } from 'http';
+import { AuthMiddleware } from '../middleware/AuthMiddleware';
+import { RateLimitMiddleware } from '../middleware/RateLimitMiddleware';
+import { InputValidator } from '../security/InputValidator';
+import { WebSocketManager } from '../realtime/WebSocketManager';
+import { ErrorManager } from '../errors/ErrorManager';
+import { AdvancedCacheSystem } from '../cache/AdvancedCacheSystem';
+import { WorkflowEngine } from '../intents/WorkflowEngine';
+
+// Configuration
+const config = {
+  port: process.env.PORT || 3000,
+  jwtSecret: process.env.JWT_SECRET || 'your-secret-key',
+  cacheSize: 10000,
+  rateLimitWindow: 15 * 60 * 1000, // 15 minutes
+  rateLimitMax: 100
+};
+
+// Initialize core systems
+const errorManager = new ErrorManager();
+const cacheSystem = new AdvancedCacheSystem({
+  maxSize: config.cacheSize,
+  defaultTtl: 300000 // 5 minutes
+});
+
+// Initialize middleware
+const authMiddleware = new AuthMiddleware({
+  jwtSecret: config.jwtSecret,
+  tokenExpiry: '15m',
+  refreshTokenExpiry: '7d',
+  roleHierarchy: {
+    'user': [],
+    'moderator': ['user'],
+    'admin': ['moderator', 'user']
+  },
+  intentPermissions: {
+    'admin_dashboard': ['admin:read'],
+    'user_management': ['admin:write']
+  }
+});
+
+const rateLimitMiddleware = new RateLimitMiddleware({
+  windowMs: config.rateLimitWindow,
+  maxRequests: config.rateLimitMax
+});
+
+// Create IXP Server
+const ixpServer = new IXPServer({
+  port: config.port,
   middleware: [
-    new SecurityMiddleware(),
-    new AdvancedMiddlewareChain([
-      new AuthenticationMiddleware(),
-      new RateLimitingMiddleware(),
-      new ValidationMiddleware()
-    ])
+    rateLimitMiddleware.middleware(),
+    authMiddleware.authenticate(),
+    authMiddleware.authorizeIntent(),
+    errorManager.middleware()
   ]
 });
 
-// Initialize services
-const serviceRegistry = new ServiceRegistry();
-const intentProcessor = new DistributedIntentProcessor(serviceRegistry);
-const loadBalancer = new LoadBalancer();
-const pluginManager = new PluginManager();
-const cacheSystem = new AdvancedCacheSystem<any>({
-  maxSize: 10000,
-  defaultTtl: 300000, // 5 minutes
-  cleanupInterval: 60000 // 1 minute
+// Create HTTP server for WebSocket integration
+const httpServer = createServer(ixpServer.app);
+const wsManager = new WebSocketManager(httpServer, ixpServer);
+
+// Initialize workflow engine
+const workflowEngine = new WorkflowEngine(ixpServer);
+
+// Register advanced intents with validation
+ixpServer.registerIntent({
+  name: 'create_user',
+  description: 'Create a new user account',
+  parameters: {
+    type: 'object',
+    properties: {
+      email: { type: 'string' },
+      password: { type: 'string' },
+      name: { type: 'string' }
+    },
+    required: ['email', 'password', 'name']
+  },
+  component: 'UserCreationResult',
+  version: '1.0.0',
+  middleware: [
+    InputValidator.validate({
+      body: [
+        {
+          field: 'email',
+          type: 'string',
+          required: true,
+          pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+          sanitize: true
+        },
+        {
+          field: 'password',
+          type: 'string',
+          required: true,
+          minLength: 8
+        },
+        {
+          field: 'name',
+          type: 'string',
+          required: true,
+          minLength: 2,
+          maxLength: 50,
+          sanitize: true
+        }
+      ]
+    })
+  ]
 });
 
-// Register services
-serviceRegistry.register('intent-processor', intentProcessor);
-serviceRegistry.register('load-balancer', loadBalancer);
-serviceRegistry.register('cache', cacheSystem);
+// Register components
+ixpServer.registerComponent({
+  name: 'UserCreationResult',
+  description: 'Display user creation result',
+  props: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      user: { type: 'object' },
+      error: { type: 'string' }
+    },
+    required: ['success']
+  },
+  render: async (props) => {
+    const { success, user, error } = props;
+    
+    return {
+      type: 'div',
+      props: { className: `user-creation ${success ? 'success' : 'error'}` },
+      children: [
+        {
+          type: 'h2',
+          children: [success ? 'User Created Successfully' : 'User Creation Failed']
+        },
+        success && user ? {
+          type: 'div',
+          props: { className: 'user-info' },
+          children: [
+            {
+              type: 'p',
+              children: [`Welcome, ${user.name}!`]
+            },
+            {
+              type: 'p',
+              children: [`Email: ${user.email}`]
+            }
+          ]
+        } : null,
+        error ? {
+          type: 'div',
+          props: { className: 'error-message' },
+          children: [error]
+        } : null
+      ].filter(Boolean)
+    };
+  }
+});
 
-// Load plugins
-await pluginManager.loadPlugin(new AdvancedAnalyticsPlugin());
+// Set up monitoring endpoints
+ixpServer.app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    cache: cacheSystem.getStats(),
+    errors: errorManager.getErrorStats()
+  });
+});
 
-// Create orchestration engine
-const orchestrationEngine = new IntentOrchestrationEngine();
+// Error monitoring
+errorManager.on('critical_error', (report) => {
+  // Send alert to monitoring system
+  console.error('🚨 Critical error detected:', report);
+});
 
-// Register complex intents
-orchestrationEngine.registerIntent(new ConversationIntent({
-  name: 'multi-turn-booking',
-  steps: [
-    { name: 'collect-destination', required: true },
-    { name: 'collect-dates', required: true },
-    { name: 'collect-preferences', required: false },
-    { name: 'confirm-booking', required: true }
-  ]
-}));
-
-// Setup component factory
-const componentFactory = new ComponentFactory();
-componentFactory.register('reactive-dashboard', ReactiveComponent);
+// Cache monitoring
+cacheSystem.on('eviction', (key) => {
+  console.log(`Cache eviction: ${key}`);
+});
 
 // Start server
-server.start();
-console.log('Advanced IXP Server running on port 3000');
-```
+httpServer.listen(config.port, () => {
+  console.log(`🚀 Advanced IXP Server running on port ${config.port}`);
+  console.log(`📊 Health check available at http://localhost:${config.port}/health`);
+  console.log(`🔌 WebSocket server enabled`);
+  console.log(`🛡️  Security middleware active`);
+  console.log(`📈 Monitoring and error handling enabled`);
+});
 
-## Running the Examples
-
-### Prerequisites
-
-```bash
-# Install dependencies
-npm install
-
-# Install additional packages for advanced examples
-npm install redis ioredis bull ws socket.io
-npm install --save-dev @types/redis @types/ws
-```
-
-### Environment Setup
-
-```bash
-# Create .env file
-cat > .env << EOF
-REDIS_URL=redis://localhost:6379
-DATABASE_URL=postgresql://user:password@localhost:5432/ixp_advanced
-JWT_SECRET=your-jwt-secret-key
-RATE_LIMIT_WINDOW=900000
-RATE_LIMIT_MAX=100
-EOF
-```
-
-### Running Individual Examples
-
-```bash
-# Multi-service architecture
-npx tsx examples/advanced/multi-service.ts
-
-# Intent orchestration
-npx tsx examples/advanced/intent-orchestration.ts
-
-# Component system
-npx tsx examples/advanced/component-system.ts
-
-# Middleware pipeline
-npx tsx examples/advanced/middleware-pipeline.ts
-
-# Plugin ecosystem
-npx tsx examples/advanced/plugin-ecosystem.ts
-
-# Performance optimization
-npx tsx examples/advanced/performance-optimization.ts
-```
-
-### Testing Advanced Features
-
-```bash
-# Run integration tests
-npm run test:integration
-
-# Run performance tests
-npm run test:performance
-
-# Run load tests
-npm run test:load
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('Shutting down gracefully...');
+  
+  // Close HTTP server
+  httpServer.close(() => {
+    console.log('HTTP server closed');
+  });
+  
+  // Cleanup cache
+  cacheSystem.destroy();
+  
+  // Exit process
+  process.exit(0);
+});
 ```
 
 ## Key Takeaways
 
 - **Scalability**: Use service registry and load balancing for horizontal scaling
-- **Modularity**: Implement plugin architecture for extensible functionality
+- **Security**: Implement comprehensive authentication, authorization, and input validation
 - **Performance**: Leverage advanced caching and optimization techniques
 - **Reliability**: Implement comprehensive error handling and recovery mechanisms
+- **Real-time**: Integrate WebSocket support for real-time features
+- **Monitoring**: Include health checks, metrics, and error tracking from the start
 - **Maintainability**: Use composition patterns and dependency injection
-- **Monitoring**: Integrate analytics and performance monitoring from the start
 
 These advanced examples demonstrate production-ready patterns for building scalable, maintainable, and high-performance applications with the IXP Server SDK.
-```

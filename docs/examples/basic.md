@@ -16,34 +16,41 @@ This guide provides simple, practical examples to help you get started with the 
 The simplest possible IXP server with a single intent and component.
 
 ```typescript
-import { IXPServer, createIntent, createComponent } from 'ixp-server';
+import { IXPServer } from 'ixp-server';
 
-// Create a simple greeting intent
-const greetingIntent = createIntent({
+// Create the server
+const server = new IXPServer({
+  port: 3000
+});
+
+// Register a simple greeting intent
+server.registerIntent({
   name: 'greeting',
   description: 'Generate a personalized greeting',
   parameters: {
-    name: { 
-      type: 'string', 
-      required: false, 
-      default: 'World',
-      description: 'Name to greet'
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Name to greet',
+        default: 'World'
+      }
     }
   },
-  handler: async (params) => {
-    return {
-      component: 'GreetingCard',
-      props: { name: params.name }
-    };
-  }
+  component: 'GreetingCard',
+  version: '1.0.0'
 });
 
-// Create a greeting card component
-const greetingCard = createComponent({
+// Register a greeting card component
+server.registerComponent({
   name: 'GreetingCard',
   description: 'A simple greeting card',
   props: {
-    name: { type: 'string', required: true }
+    type: 'object',
+    properties: {
+      name: { type: 'string' }
+    },
+    required: ['name']
   },
   render: async (props) => {
     return {
@@ -65,13 +72,7 @@ const greetingCard = createComponent({
   }
 });
 
-// Create and start the server
-const server = new IXPServer({
-  port: 3000,
-  intents: [greetingIntent],
-  components: [greetingCard]
-});
-
+// Start the server
 server.start().then(() => {
   console.log('🚀 Hello World server running on http://localhost:3000');
 });
@@ -101,107 +102,98 @@ curl -X POST http://localhost:3000/ixp/render \
 A server with multiple intents demonstrating different use cases.
 
 ```typescript
-import { IXPServer, createIntent, createComponent } from 'ixp-server';
+import { IXPServer } from 'ixp-server';
+
+const server = new IXPServer({ port: 3000 });
 
 // Weather intent
-const weatherIntent = createIntent({
+server.registerIntent({
   name: 'weather',
   description: 'Get weather information',
   parameters: {
-    city: { type: 'string', required: true, description: 'City name' },
-    units: { type: 'string', required: false, default: 'celsius' }
+    type: 'object',
+    properties: {
+      city: {
+        type: 'string',
+        description: 'City name'
+      },
+      units: {
+        type: 'string',
+        description: 'Temperature units',
+        enum: ['celsius', 'fahrenheit'],
+        default: 'celsius'
+      }
+    },
+    required: ['city']
   },
-  handler: async (params) => {
-    // Simulate weather API call
-    const weatherData = {
-      city: params.city,
-      temperature: Math.floor(Math.random() * 30) + 10,
-      condition: ['sunny', 'cloudy', 'rainy'][Math.floor(Math.random() * 3)],
-      units: params.units
-    };
-    
-    return {
-      component: 'WeatherCard',
-      props: weatherData
-    };
-  }
+  component: 'WeatherCard',
+  version: '1.0.0'
 });
 
 // Time intent
-const timeIntent = createIntent({
+server.registerIntent({
   name: 'current_time',
   description: 'Get current time',
   parameters: {
-    timezone: { type: 'string', required: false, default: 'UTC' },
-    format: { type: 'string', required: false, default: '24h' }
-  },
-  handler: async (params) => {
-    const now = new Date();
-    const timeString = params.format === '12h' 
-      ? now.toLocaleTimeString('en-US', { hour12: true })
-      : now.toLocaleTimeString('en-US', { hour12: false });
-    
-    return {
-      component: 'TimeDisplay',
-      props: {
-        time: timeString,
-        timezone: params.timezone,
-        format: params.format
+    type: 'object',
+    properties: {
+      timezone: {
+        type: 'string',
+        description: 'Timezone identifier',
+        default: 'UTC'
+      },
+      format: {
+        type: 'string',
+        description: 'Time format',
+        enum: ['12h', '24h'],
+        default: '24h'
       }
-    };
-  }
+    }
+  },
+  component: 'TimeDisplay',
+  version: '1.0.0'
 });
 
 // Calculator intent
-const calculatorIntent = createIntent({
+server.registerIntent({
   name: 'calculate',
   description: 'Perform basic calculations',
   parameters: {
-    operation: { type: 'string', required: true },
-    a: { type: 'number', required: true },
-    b: { type: 'number', required: true }
-  },
-  handler: async (params) => {
-    let result: number;
-    
-    switch (params.operation) {
-      case 'add':
-        result = params.a + params.b;
-        break;
-      case 'subtract':
-        result = params.a - params.b;
-        break;
-      case 'multiply':
-        result = params.a * params.b;
-        break;
-      case 'divide':
-        result = params.b !== 0 ? params.a / params.b : NaN;
-        break;
-      default:
-        throw new Error(`Unsupported operation: ${params.operation}`);
-    }
-    
-    return {
-      component: 'CalculatorResult',
-      props: {
-        operation: params.operation,
-        a: params.a,
-        b: params.b,
-        result
+    type: 'object',
+    properties: {
+      operation: {
+        type: 'string',
+        description: 'Mathematical operation',
+        enum: ['add', 'subtract', 'multiply', 'divide']
+      },
+      a: {
+        type: 'number',
+        description: 'First number'
+      },
+      b: {
+        type: 'number',
+        description: 'Second number'
       }
-    };
-  }
+    },
+    required: ['operation', 'a', 'b']
+  },
+  component: 'CalculatorResult',
+  version: '1.0.0'
 });
 
 // Weather card component
-const weatherCard = createComponent({
+server.registerComponent({
   name: 'WeatherCard',
   description: 'Weather information display',
   props: {
-    city: { type: 'string', required: true },
-    temperature: { type: 'number', required: true },
-    condition: { type: 'string', required: true },
-    units: { type: 'string', required: true }
+    type: 'object',
+    properties: {
+      city: { type: 'string' },
+      temperature: { type: 'number' },
+      condition: { type: 'string' },
+      units: { type: 'string' }
+    },
+    required: ['city', 'temperature', 'condition', 'units']
   },
   render: async (props) => {
     const tempUnit = props.units === 'fahrenheit' ? '°F' : '°C';
@@ -237,13 +229,17 @@ const weatherCard = createComponent({
 });
 
 // Time display component
-const timeDisplay = createComponent({
+server.registerComponent({
   name: 'TimeDisplay',
   description: 'Current time display',
   props: {
-    time: { type: 'string', required: true },
-    timezone: { type: 'string', required: true },
-    format: { type: 'string', required: true }
+    type: 'object',
+    properties: {
+      time: { type: 'string' },
+      timezone: { type: 'string' },
+      format: { type: 'string' }
+    },
+    required: ['time', 'timezone', 'format']
   },
   render: async (props) => {
     return {
@@ -266,14 +262,18 @@ const timeDisplay = createComponent({
 });
 
 // Calculator result component
-const calculatorResult = createComponent({
+server.registerComponent({
   name: 'CalculatorResult',
   description: 'Calculator result display',
   props: {
-    operation: { type: 'string', required: true },
-    a: { type: 'number', required: true },
-    b: { type: 'number', required: true },
-    result: { type: 'number', required: true }
+    type: 'object',
+    properties: {
+      operation: { type: 'string' },
+      a: { type: 'number' },
+      b: { type: 'number' },
+      result: { type: 'number' }
+    },
+    required: ['operation', 'a', 'b', 'result']
   },
   render: async (props) => {
     const operationSymbols = {
@@ -304,16 +304,9 @@ const calculatorResult = createComponent({
   }
 });
 
-// Create server with multiple intents
-const server = new IXPServer({
-  port: 3000,
-  intents: [weatherIntent, timeIntent, calculatorIntent],
-  components: [weatherCard, timeDisplay, calculatorResult]
-});
-
+// Start the server
 server.start().then(() => {
   console.log('🚀 Multi-intent server running on http://localhost:3000');
-  console.log('Available intents: weather, current_time, calculate');
 });
 ```
 
@@ -340,6 +333,7 @@ curl -X POST http://localhost:3000/ixp/render \
     "intent": {
       "name": "current_time",
       "parameters": {
+        "timezone": "America/New_York",
         "format": "12h"
       }
     }
@@ -362,166 +356,141 @@ curl -X POST http://localhost:3000/ixp/render \
 
 ## Dynamic Components
 
-Components that render different content based on props and conditions.
+Components that adapt their rendering based on props and conditions.
 
 ```typescript
-import { IXPServer, createIntent, createComponent } from 'ixp-server';
+import { IXPServer } from 'ixp-server';
 
-// User profile intent
-const userProfileIntent = createIntent({
-  name: 'user_profile',
-  description: 'Display user profile information',
+const server = new IXPServer({ port: 3000 });
+
+// Product listing intent
+server.registerIntent({
+  name: 'product_list',
+  description: 'Display a list of products',
   parameters: {
-    userId: { type: 'string', required: true },
-    includeStats: { type: 'boolean', required: false, default: false },
-    theme: { type: 'string', required: false, default: 'light' }
-  },
-  handler: async (params) => {
-    // Simulate user data fetch
-    const userData = {
-      id: params.userId,
-      name: 'John Doe',
-      email: 'john@example.com',
-      avatar: 'https://via.placeholder.com/100',
-      joinDate: '2023-01-15',
-      stats: {
-        posts: 42,
-        followers: 128,
-        following: 89
+    type: 'object',
+    properties: {
+      category: {
+        type: 'string',
+        description: 'Product category'
       },
-      isVerified: Math.random() > 0.5,
-      status: ['online', 'offline', 'away'][Math.floor(Math.random() * 3)]
-    };
-    
-    return {
-      component: 'UserProfile',
-      props: {
-        user: userData,
-        includeStats: params.includeStats,
-        theme: params.theme
+      limit: {
+        type: 'number',
+        description: 'Maximum number of products',
+        minimum: 1,
+        maximum: 50,
+        default: 10
+      },
+      sortBy: {
+        type: 'string',
+        description: 'Sort criteria',
+        enum: ['name', 'price', 'rating'],
+        default: 'name'
       }
-    };
-  }
+    }
+  },
+  component: 'ProductGrid',
+  version: '1.0.0'
 });
 
-// Dynamic user profile component
-const userProfile = createComponent({
-  name: 'UserProfile',
-  description: 'Dynamic user profile display',
+// Dynamic product grid component
+server.registerComponent({
+  name: 'ProductGrid',
+  description: 'Responsive product grid',
   props: {
-    user: { type: 'object', required: true },
-    includeStats: { type: 'boolean', required: false, default: false },
-    theme: { type: 'string', required: false, default: 'light' }
+    type: 'object',
+    properties: {
+      products: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            price: { type: 'number' },
+            rating: { type: 'number' },
+            image: { type: 'string' },
+            inStock: { type: 'boolean' }
+          }
+        }
+      },
+      category: { type: 'string' },
+      sortBy: { type: 'string' }
+    },
+    required: ['products']
   },
   render: async (props) => {
-    const { user, includeStats, theme } = props;
-    const themeClass = `profile-${theme}`;
-    
-    // Status indicator
-    const statusIndicator = {
-      type: 'span',
-      props: { 
-        className: `status-indicator status-${user.status}`,
-        title: `User is ${user.status}`
-      },
-      children: ['●']
-    };
-    
-    // Verification badge (conditional)
-    const verificationBadge = user.isVerified ? {
-      type: 'span',
-      props: { className: 'verification-badge', title: 'Verified user' },
-      children: ['✓']
-    } : null;
-    
-    // Stats section (conditional)
-    const statsSection = includeStats ? {
-      type: 'div',
-      props: { className: 'user-stats' },
-      children: [
-        {
-          type: 'div',
-          props: { className: 'stat-item' },
-          children: [
-            { type: 'span', props: { className: 'stat-value' }, children: [user.stats.posts.toString()] },
-            { type: 'span', props: { className: 'stat-label' }, children: ['Posts'] }
-          ]
-        },
-        {
-          type: 'div',
-          props: { className: 'stat-item' },
-          children: [
-            { type: 'span', props: { className: 'stat-value' }, children: [user.stats.followers.toString()] },
-            { type: 'span', props: { className: 'stat-label' }, children: ['Followers'] }
-          ]
-        },
-        {
-          type: 'div',
-          props: { className: 'stat-item' },
-          children: [
-            { type: 'span', props: { className: 'stat-value' }, children: [user.stats.following.toString()] },
-            { type: 'span', props: { className: 'stat-label' }, children: ['Following'] }
-          ]
-        }
-      ]
-    } : null;
+    const { products, category, sortBy } = props;
     
     return {
       type: 'div',
-      props: { className: `user-profile ${themeClass}` },
+      props: { className: 'product-grid' },
       children: [
-        // Header section
         {
-          type: 'div',
-          props: { className: 'profile-header' },
+          type: 'header',
+          props: { className: 'grid-header' },
           children: [
             {
-              type: 'img',
-              props: {
-                src: user.avatar,
-                alt: `${user.name}'s avatar`,
-                className: 'user-avatar'
-              }
+              type: 'h2',
+              children: [category ? `${category} Products` : 'All Products']
             },
             {
-              type: 'div',
-              props: { className: 'user-info' },
-              children: [
-                {
-                  type: 'h2',
-                  props: { className: 'user-name' },
-                  children: [
-                    user.name,
-                    verificationBadge,
-                    statusIndicator
-                  ].filter(Boolean)
-                },
-                {
-                  type: 'p',
-                  props: { className: 'user-email' },
-                  children: [user.email]
-                },
-                {
-                  type: 'p',
-                  props: { className: 'join-date' },
-                  children: [`Joined ${new Date(user.joinDate).toLocaleDateString()}`]
-                }
-              ]
+              type: 'p',
+              props: { className: 'sort-info' },
+              children: [`Sorted by: ${sortBy}`]
             }
           ]
         },
-        // Stats section (conditional)
-        statsSection
-      ].filter(Boolean)
+        {
+          type: 'div',
+          props: { className: 'products' },
+          children: products.map((product: any) => ({
+            type: 'div',
+            props: {
+              className: `product-card ${!product.inStock ? 'out-of-stock' : ''}`,
+              'data-product-id': product.id
+            },
+            children: [
+              {
+                type: 'img',
+                props: {
+                  src: product.image,
+                  alt: product.name,
+                  className: 'product-image'
+                }
+              },
+              {
+                type: 'div',
+                props: { className: 'product-info' },
+                children: [
+                  {
+                    type: 'h3',
+                    props: { className: 'product-name' },
+                    children: [product.name]
+                  },
+                  {
+                    type: 'p',
+                    props: { className: 'product-price' },
+                    children: [`$${product.price.toFixed(2)}`]
+                  },
+                  {
+                    type: 'div',
+                    props: { className: 'product-rating' },
+                    children: [`★`.repeat(Math.floor(product.rating)) + ` (${product.rating})`]
+                  },
+                  !product.inStock && {
+                    type: 'span',
+                    props: { className: 'out-of-stock-label' },
+                    children: ['Out of Stock']
+                  }
+                ].filter(Boolean)
+              }
+            ]
+          }))
+        }
+      ]
     };
   }
-});
-
-// Create server
-const server = new IXPServer({
-  port: 3000,
-  intents: [userProfileIntent],
-  components: [userProfile]
 });
 
 server.start().then(() => {
@@ -529,809 +498,406 @@ server.start().then(() => {
 });
 ```
 
-### Testing Dynamic Components
-
-```bash
-# Basic profile
-curl -X POST http://localhost:3000/ixp/render \
-  -H "Content-Type: application/json" \
-  -d '{
-    "intent": {
-      "name": "user_profile",
-      "parameters": {
-        "userId": "123"
-      }
-    }
-  }'
-
-# Profile with stats and dark theme
-curl -X POST http://localhost:3000/ixp/render \
-  -H "Content-Type: application/json" \
-  -d '{
-    "intent": {
-      "name": "user_profile",
-      "parameters": {
-        "userId": "123",
-        "includeStats": true,
-        "theme": "dark"
-      }
-    }
-  }'
-```
-
 ## Parameter Validation
 
-Implementing custom validation for intent parameters.
+Advanced parameter validation using JSON Schema.
 
 ```typescript
-import { IXPServer, createIntent, createComponent } from 'ixp-server';
+import { IXPServer } from 'ixp-server';
 
-// Email validation intent with custom validation
-const emailIntent = createIntent({
-  name: 'send_email',
-  description: 'Send an email with validation',
+const server = new IXPServer({ port: 3000 });
+
+// User registration intent with complex validation
+server.registerIntent({
+  name: 'user_registration',
+  description: 'Register a new user',
   parameters: {
-    to: { 
-      type: 'string', 
-      required: true,
-      description: 'Recipient email address',
-      validation: (value: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(value);
+    type: 'object',
+    properties: {
+      email: {
+        type: 'string',
+        format: 'email',
+        description: 'User email address'
+      },
+      password: {
+        type: 'string',
+        minLength: 8,
+        pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]',
+        description: 'Password (min 8 chars, must include uppercase, lowercase, number, and special character)'
+      },
+      age: {
+        type: 'number',
+        minimum: 13,
+        maximum: 120,
+        description: 'User age'
+      },
+      preferences: {
+        type: 'object',
+        properties: {
+          newsletter: { type: 'boolean', default: false },
+          theme: {
+            type: 'string',
+            enum: ['light', 'dark', 'auto'],
+            default: 'auto'
+          },
+          language: {
+            type: 'string',
+            pattern: '^[a-z]{2}(-[A-Z]{2})?$',
+            default: 'en-US'
+          }
+        }
       }
     },
-    subject: { 
-      type: 'string', 
-      required: true,
-      description: 'Email subject',
-      validation: (value: string) => {
-        return value.length >= 3 && value.length <= 100;
-      }
-    },
-    body: { 
-      type: 'string', 
-      required: true,
-      description: 'Email body',
-      validation: (value: string) => {
-        return value.length >= 10 && value.length <= 1000;
-      }
-    },
-    priority: {
-      type: 'string',
-      required: false,
-      default: 'normal',
-      description: 'Email priority',
-      validation: (value: string) => {
-        return ['low', 'normal', 'high', 'urgent'].includes(value);
-      }
-    }
+    required: ['email', 'password', 'age'],
+    additionalProperties: false
   },
-  handler: async (params) => {
-    // Simulate email sending
-    const emailId = Math.random().toString(36).substr(2, 9);
-    const timestamp = new Date().toISOString();
-    
-    return {
-      component: 'EmailConfirmation',
-      props: {
-        emailId,
-        to: params.to,
-        subject: params.subject,
-        priority: params.priority,
-        timestamp,
-        status: 'sent'
-      }
-    };
-  }
+  component: 'RegistrationForm',
+  version: '1.0.0'
 });
 
-// Age validation intent
-const ageVerificationIntent = createIntent({
-  name: 'age_verification',
-  description: 'Verify user age with validation',
-  parameters: {
-    birthDate: {
-      type: 'string',
-      required: true,
-      description: 'Birth date in YYYY-MM-DD format',
-      validation: (value: string) => {
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(value)) return false;
-        
-        const date = new Date(value);
-        const now = new Date();
-        return date <= now && date.getFullYear() >= 1900;
-      }
-    },
-    country: {
-      type: 'string',
-      required: false,
-      default: 'US',
-      description: 'Country code for age verification',
-      validation: (value: string) => {
-        const countryCodes = ['US', 'CA', 'GB', 'AU', 'DE', 'FR', 'JP'];
-        return countryCodes.includes(value.toUpperCase());
-      }
-    }
-  },
-  handler: async (params) => {
-    const birthDate = new Date(params.birthDate);
-    const now = new Date();
-    const age = now.getFullYear() - birthDate.getFullYear();
-    const monthDiff = now.getMonth() - birthDate.getMonth();
-    
-    const actualAge = monthDiff < 0 || (monthDiff === 0 && now.getDate() < birthDate.getDate()) 
-      ? age - 1 
-      : age;
-    
-    const legalAge = params.country === 'US' ? 21 : 18;
-    const isLegal = actualAge >= legalAge;
-    
-    return {
-      component: 'AgeVerificationResult',
-      props: {
-        age: actualAge,
-        legalAge,
-        isLegal,
-        country: params.country,
-        birthDate: params.birthDate
-      }
-    };
-  }
-});
-
-// Email confirmation component
-const emailConfirmation = createComponent({
-  name: 'EmailConfirmation',
-  description: 'Email sending confirmation',
+// Registration form component
+server.registerComponent({
+  name: 'RegistrationForm',
+  description: 'User registration form',
   props: {
-    emailId: { type: 'string', required: true },
-    to: { type: 'string', required: true },
-    subject: { type: 'string', required: true },
-    priority: { type: 'string', required: true },
-    timestamp: { type: 'string', required: true },
-    status: { type: 'string', required: true }
+    type: 'object',
+    properties: {
+      email: { type: 'string' },
+      age: { type: 'number' },
+      preferences: { type: 'object' }
+    },
+    required: ['email', 'age']
   },
   render: async (props) => {
-    const priorityColors = {
-      low: '#28a745',
-      normal: '#007bff',
-      high: '#fd7e14',
-      urgent: '#dc3545'
-    };
-    
     return {
       type: 'div',
-      props: { className: 'email-confirmation' },
+      props: { className: 'registration-form' },
       children: [
         {
           type: 'h2',
-          props: { className: 'confirmation-title' },
-          children: ['Email Sent Successfully']
+          children: ['Registration Successful!']
         },
         {
           type: 'div',
-          props: { className: 'email-details' },
+          props: { className: 'user-info' },
           children: [
             {
               type: 'p',
-              props: {},
-              children: [`Email ID: ${props.emailId}`]
+              children: [`Email: ${props.email}`]
             },
             {
               type: 'p',
-              props: {},
-              children: [`To: ${props.to}`]
+              children: [`Age: ${props.age}`]
             },
-            {
-              type: 'p',
-              props: {},
-              children: [`Subject: ${props.subject}`]
-            },
-            {
-              type: 'p',
-              props: {},
+            props.preferences && {
+              type: 'div',
+              props: { className: 'preferences' },
               children: [
-                'Priority: ',
                 {
-                  type: 'span',
-                  props: { 
-                    style: `color: ${priorityColors[props.priority as keyof typeof priorityColors]}; font-weight: bold;`
-                  },
-                  children: [props.priority.toUpperCase()]
+                  type: 'h3',
+                  children: ['Preferences:']
+                },
+                {
+                  type: 'ul',
+                  children: Object.entries(props.preferences).map(([key, value]) => ({
+                    type: 'li',
+                    children: [`${key}: ${value}`]
+                  }))
                 }
               ]
-            },
-            {
-              type: 'p',
-              props: { className: 'timestamp' },
-              children: [`Sent at: ${new Date(props.timestamp).toLocaleString()}`]
             }
-          ]
+          ].filter(Boolean)
         }
       ]
     };
   }
-});
-
-// Age verification result component
-const ageVerificationResult = createComponent({
-  name: 'AgeVerificationResult',
-  description: 'Age verification result display',
-  props: {
-    age: { type: 'number', required: true },
-    legalAge: { type: 'number', required: true },
-    isLegal: { type: 'boolean', required: true },
-    country: { type: 'string', required: true },
-    birthDate: { type: 'string', required: true }
-  },
-  render: async (props) => {
-    return {
-      type: 'div',
-      props: { className: `age-verification ${props.isLegal ? 'verified' : 'denied'}` },
-      children: [
-        {
-          type: 'h2',
-          props: { className: 'verification-title' },
-          children: [props.isLegal ? 'Age Verified ✓' : 'Age Verification Failed ✗']
-        },
-        {
-          type: 'div',
-          props: { className: 'verification-details' },
-          children: [
-            {
-              type: 'p',
-              props: {},
-              children: [`Your age: ${props.age} years`]
-            },
-            {
-              type: 'p',
-              props: {},
-              children: [`Required age in ${props.country}: ${props.legalAge} years`]
-            },
-            {
-              type: 'p',
-              props: {},
-              children: [`Birth date: ${props.birthDate}`]
-            },
-            {
-              type: 'div',
-              props: { 
-                className: `status-message ${props.isLegal ? 'success' : 'error'}`,
-                style: `color: ${props.isLegal ? '#28a745' : '#dc3545'}; font-weight: bold;`
-              },
-              children: [
-                props.isLegal 
-                  ? 'You meet the age requirements!' 
-                  : 'You do not meet the minimum age requirements.'
-              ]
-            }
-          ]
-        }
-      ]
-    };
-  }
-});
-
-// Create server with validation
-const server = new IXPServer({
-  port: 3000,
-  intents: [emailIntent, ageVerificationIntent],
-  components: [emailConfirmation, ageVerificationResult]
 });
 
 server.start().then(() => {
-  console.log('🚀 Validation server running on http://localhost:3000');
-  console.log('Try invalid parameters to see validation in action!');
+  console.log('🚀 Parameter validation server running on http://localhost:3000');
 });
-```
-
-### Testing Parameter Validation
-
-```bash
-# Valid email
-curl -X POST http://localhost:3000/ixp/render \
-  -H "Content-Type: application/json" \
-  -d '{
-    "intent": {
-      "name": "send_email",
-      "parameters": {
-        "to": "user@example.com",
-        "subject": "Test Email",
-        "body": "This is a test email message.",
-        "priority": "high"
-      }
-    }
-  }'
-
-# Invalid email (should fail validation)
-curl -X POST http://localhost:3000/ixp/render \
-  -H "Content-Type: application/json" \
-  -d '{
-    "intent": {
-      "name": "send_email",
-      "parameters": {
-        "to": "invalid-email",
-        "subject": "Hi",
-        "body": "Short"
-      }
-    }
-  }'
-
-# Age verification
-curl -X POST http://localhost:3000/ixp/render \
-  -H "Content-Type: application/json" \
-  -d '{
-    "intent": {
-      "name": "age_verification",
-      "parameters": {
-        "birthDate": "1990-05-15",
-        "country": "US"
-      }
-    }
-  }'
 ```
 
 ## Error Handling
 
-Proper error handling and user-friendly error messages.
+Proper error handling and validation feedback.
 
 ```typescript
-import { IXPServer, createIntent, createComponent } from 'ixp-server';
+import { IXPServer } from 'ixp-server';
 
-// File processing intent with error handling
-const fileProcessingIntent = createIntent({
+const server = new IXPServer({ port: 3000 });
+
+// File processing intent
+server.registerIntent({
   name: 'process_file',
-  description: 'Process a file with error handling',
+  description: 'Process uploaded file',
   parameters: {
-    filename: { type: 'string', required: true },
-    operation: { type: 'string', required: true },
-    options: { type: 'object', required: false, default: {} }
+    type: 'object',
+    properties: {
+      filename: {
+        type: 'string',
+        pattern: '^[a-zA-Z0-9._-]+\\.(jpg|jpeg|png|gif|pdf|txt|doc|docx)$',
+        description: 'Valid filename with supported extension'
+      },
+      fileSize: {
+        type: 'number',
+        minimum: 1,
+        maximum: 10485760, // 10MB
+        description: 'File size in bytes'
+      },
+      processType: {
+        type: 'string',
+        enum: ['compress', 'convert', 'analyze'],
+        description: 'Type of processing to perform'
+      }
+    },
+    required: ['filename', 'fileSize', 'processType']
   },
-  handler: async (params) => {
-    try {
-      // Simulate file processing with potential errors
-      const { filename, operation, options } = params;
-      
-      // Validate file extension
-      const allowedExtensions = ['.txt', '.json', '.csv', '.xml'];
-      const extension = filename.substring(filename.lastIndexOf('.'));
-      
-      if (!allowedExtensions.includes(extension)) {
-        throw new Error(`Unsupported file type: ${extension}. Allowed types: ${allowedExtensions.join(', ')}`);
-      }
-      
-      // Validate operation
-      const allowedOperations = ['parse', 'validate', 'transform', 'compress'];
-      if (!allowedOperations.includes(operation)) {
-        throw new Error(`Unsupported operation: ${operation}. Allowed operations: ${allowedOperations.join(', ')}`);
-      }
-      
-      // Simulate processing time and potential failure
-      const processingTime = Math.random() * 2000 + 500; // 0.5-2.5 seconds
-      await new Promise(resolve => setTimeout(resolve, processingTime));
-      
-      // Simulate random failures (20% chance)
-      if (Math.random() < 0.2) {
-        throw new Error(`Processing failed: Unable to ${operation} file ${filename}`);
-      }
-      
-      // Success case
-      const result = {
-        filename,
-        operation,
-        status: 'completed',
-        processingTime: Math.round(processingTime),
-        size: Math.floor(Math.random() * 10000) + 1000, // Random file size
-        checksum: Math.random().toString(36).substr(2, 16)
-      };
-      
-      return {
-        component: 'FileProcessingResult',
-        props: { result, error: null }
-      };
-      
-    } catch (error) {
-      // Handle errors gracefully
-      return {
-        component: 'FileProcessingResult',
-        props: {
-          result: null,
-          error: {
-            message: error instanceof Error ? error.message : 'Unknown error occurred',
-            filename: params.filename,
-            operation: params.operation,
-            timestamp: new Date().toISOString()
-          }
-        }
-      };
-    }
-  }
+  component: 'FileProcessor',
+  version: '1.0.0'
 });
 
-// API call intent with network error handling
-const apiCallIntent = createIntent({
-  name: 'api_call',
-  description: 'Make API call with error handling',
-  parameters: {
-    endpoint: { type: 'string', required: true },
-    method: { type: 'string', required: false, default: 'GET' },
-    timeout: { type: 'number', required: false, default: 5000 }
-  },
-  handler: async (params) => {
-    try {
-      // Simulate API call with various error scenarios
-      const { endpoint, method, timeout } = params;
-      
-      // Validate URL format
-      try {
-        new URL(endpoint);
-      } catch {
-        throw new Error('Invalid URL format');
-      }
-      
-      // Simulate network delay
-      const delay = Math.random() * timeout;
-      await new Promise(resolve => setTimeout(resolve, delay));
-      
-      // Simulate various HTTP errors
-      const errorScenarios = [
-        { chance: 0.1, status: 404, message: 'Endpoint not found' },
-        { chance: 0.05, status: 500, message: 'Internal server error' },
-        { chance: 0.03, status: 403, message: 'Access forbidden' },
-        { chance: 0.02, status: 429, message: 'Rate limit exceeded' }
-      ];
-      
-      for (const scenario of errorScenarios) {
-        if (Math.random() < scenario.chance) {
-          throw new Error(`HTTP ${scenario.status}: ${scenario.message}`);
-        }
-      }
-      
-      // Simulate timeout
-      if (delay > timeout * 0.9) {
-        throw new Error(`Request timeout after ${timeout}ms`);
-      }
-      
-      // Success case
-      const response = {
-        endpoint,
-        method,
-        status: 200,
-        responseTime: Math.round(delay),
-        data: {
-          message: 'API call successful',
-          timestamp: new Date().toISOString(),
-          requestId: Math.random().toString(36).substr(2, 12)
-        }
-      };
-      
-      return {
-        component: 'ApiCallResult',
-        props: { response, error: null }
-      };
-      
-    } catch (error) {
-      return {
-        component: 'ApiCallResult',
-        props: {
-          response: null,
-          error: {
-            message: error instanceof Error ? error.message : 'Unknown error occurred',
-            endpoint: params.endpoint,
-            method: params.method,
-            timestamp: new Date().toISOString()
-          }
-        }
-      };
-    }
-  }
-});
-
-// File processing result component
-const fileProcessingResult = createComponent({
-  name: 'FileProcessingResult',
-  description: 'File processing result with error handling',
+// File processor component with error states
+server.registerComponent({
+  name: 'FileProcessor',
+  description: 'File processing status display',
   props: {
-    result: { type: 'object', required: false },
-    error: { type: 'object', required: false }
+    type: 'object',
+    properties: {
+      filename: { type: 'string' },
+      fileSize: { type: 'number' },
+      processType: { type: 'string' },
+      status: {
+        type: 'string',
+        enum: ['processing', 'completed', 'error'],
+        default: 'processing'
+      },
+      error: { type: 'string' }
+    },
+    required: ['filename', 'fileSize', 'processType']
   },
   render: async (props) => {
-    if (props.error) {
-      // Error state
-      return {
-        type: 'div',
-        props: { className: 'file-processing-error' },
-        children: [
-          {
-            type: 'h2',
-            props: { className: 'error-title' },
-            children: ['❌ File Processing Failed']
-          },
-          {
-            type: 'div',
-            props: { className: 'error-details' },
-            children: [
-              {
-                type: 'p',
-                props: { className: 'error-message' },
-                children: [props.error.message]
-              },
-              {
-                type: 'p',
-                props: {},
-                children: [`File: ${props.error.filename}`]
-              },
-              {
-                type: 'p',
-                props: {},
-                children: [`Operation: ${props.error.operation}`]
-              },
-              {
-                type: 'p',
-                props: { className: 'error-timestamp' },
-                children: [`Error occurred at: ${new Date(props.error.timestamp).toLocaleString()}`]
-              }
-            ]
-          },
-          {
-            type: 'div',
-            props: { className: 'error-suggestions' },
-            children: [
-              {
-                type: 'h3',
-                props: {},
-                children: ['Suggestions:']
-              },
-              {
-                type: 'ul',
-                props: {},
-                children: [
-                  { type: 'li', props: {}, children: ['Check if the file exists and is accessible'] },
-                  { type: 'li', props: {}, children: ['Verify the file format is supported'] },
-                  { type: 'li', props: {}, children: ['Try a different operation'] },
-                  { type: 'li', props: {}, children: ['Contact support if the problem persists'] }
-                ]
-              }
-            ]
-          }
-        ]
-      };
-    }
+    const { filename, fileSize, processType, status = 'processing', error } = props;
     
-    // Success state
-    const result = props.result;
+    const formatFileSize = (bytes: number) => {
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      if (bytes === 0) return '0 Bytes';
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+    };
+    
     return {
       type: 'div',
-      props: { className: 'file-processing-success' },
+      props: { className: `file-processor status-${status}` },
       children: [
         {
-          type: 'h2',
-          props: { className: 'success-title' },
-          children: ['✅ File Processing Completed']
-        },
-        {
           type: 'div',
-          props: { className: 'result-details' },
+          props: { className: 'file-info' },
           children: [
             {
-              type: 'p',
-              props: {},
-              children: [`File: ${result.filename}`]
+              type: 'h3',
+              children: ['File Processing']
             },
             {
               type: 'p',
-              props: {},
-              children: [`Operation: ${result.operation}`]
+              children: [`File: ${filename}`]
             },
             {
               type: 'p',
-              props: {},
-              children: [`Processing time: ${result.processingTime}ms`]
+              children: [`Size: ${formatFileSize(fileSize)}`]
             },
             {
               type: 'p',
-              props: {},
-              children: [`File size: ${result.size} bytes`]
-            },
-            {
-              type: 'p',
-              props: {},
-              children: [`Checksum: ${result.checksum}`]
+              children: [`Process: ${processType}`]
             }
           ]
-        }
-      ]
-    };
-  }
-});
-
-// API call result component
-const apiCallResult = createComponent({
-  name: 'ApiCallResult',
-  description: 'API call result with error handling',
-  props: {
-    response: { type: 'object', required: false },
-    error: { type: 'object', required: false }
-  },
-  render: async (props) => {
-    if (props.error) {
-      // Error state
-      return {
-        type: 'div',
-        props: { className: 'api-call-error' },
-        children: [
-          {
-            type: 'h2',
-            props: { className: 'error-title' },
-            children: ['🚫 API Call Failed']
-          },
-          {
-            type: 'div',
-            props: { className: 'error-details' },
-            children: [
-              {
-                type: 'p',
-                props: { className: 'error-message' },
-                children: [props.error.message]
-              },
-              {
-                type: 'p',
-                props: {},
-                children: [`Endpoint: ${props.error.endpoint}`]
-              },
-              {
-                type: 'p',
-                props: {},
-                children: [`Method: ${props.error.method}`]
-              },
-              {
-                type: 'p',
-                props: { className: 'error-timestamp' },
-                children: [`Failed at: ${new Date(props.error.timestamp).toLocaleString()}`]
-              }
-            ]
-          }
-        ]
-      };
-    }
-    
-    // Success state
-    const response = props.response;
-    return {
-      type: 'div',
-      props: { className: 'api-call-success' },
-      children: [
-        {
-          type: 'h2',
-          props: { className: 'success-title' },
-          children: ['✅ API Call Successful']
         },
         {
           type: 'div',
-          props: { className: 'response-details' },
+          props: { className: 'status-indicator' },
           children: [
-            {
-              type: 'p',
-              props: {},
-              children: [`Endpoint: ${response.endpoint}`]
-            },
-            {
-              type: 'p',
-              props: {},
-              children: [`Method: ${response.method}`]
-            },
-            {
-              type: 'p',
-              props: {},
-              children: [`Status: ${response.status}`]
-            },
-            {
-              type: 'p',
-              props: {},
-              children: [`Response time: ${response.responseTime}ms`]
-            },
-            {
+            status === 'processing' && {
               type: 'div',
-              props: { className: 'response-data' },
+              props: { className: 'spinner' },
+              children: ['Processing...']
+            },
+            status === 'completed' && {
+              type: 'div',
+              props: { className: 'success' },
+              children: ['✅ Processing completed successfully!']
+            },
+            status === 'error' && {
+              type: 'div',
+              props: { className: 'error' },
               children: [
-                {
-                  type: 'h3',
-                  props: {},
-                  children: ['Response Data:']
-                },
-                {
-                  type: 'pre',
-                  props: { className: 'json-data' },
-                  children: [JSON.stringify(response.data, null, 2)]
+                '❌ Processing failed',
+                error && {
+                  type: 'p',
+                  props: { className: 'error-message' },
+                  children: [error]
                 }
-              ]
+              ].filter(Boolean)
             }
-          ]
+          ].filter(Boolean)
         }
       ]
     };
   }
-});
-
-// Create server with error handling
-const server = new IXPServer({
-  port: 3000,
-  intents: [fileProcessingIntent, apiCallIntent],
-  components: [fileProcessingResult, apiCallResult]
 });
 
 server.start().then(() => {
   console.log('🚀 Error handling server running on http://localhost:3000');
-  console.log('Try different parameters to see error handling in action!');
 });
 ```
 
-### Testing Error Handling
+## Middleware Integration
+
+Using middleware for authentication, logging, and request processing.
+
+```typescript
+import { IXPServer } from 'ixp-server';
+import { Request, Response, NextFunction } from 'express';
+
+// Authentication middleware
+const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  // Simulate token validation
+  const token = authHeader.substring(7);
+  if (token !== 'valid-token-123') {
+    return res.status(403).json({ error: 'Invalid token' });
+  }
+  
+  // Add user info to request
+  (req as any).user = { id: 'user123', name: 'John Doe' };
+  next();
+};
+
+// Logging middleware
+const loggingMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+  });
+  
+  next();
+};
+
+const server = new IXPServer({
+  port: 3000,
+  middleware: [loggingMiddleware, authMiddleware]
+});
+
+// Protected user profile intent
+server.registerIntent({
+  name: 'user_profile',
+  description: 'Get user profile information',
+  parameters: {
+    type: 'object',
+    properties: {
+      includePrivate: {
+        type: 'boolean',
+        description: 'Include private information',
+        default: false
+      }
+    }
+  },
+  component: 'UserProfile',
+  version: '1.0.0'
+});
+
+// User profile component
+server.registerComponent({
+  name: 'UserProfile',
+  description: 'User profile display',
+  props: {
+    type: 'object',
+    properties: {
+      user: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string' },
+          email: { type: 'string' }
+        }
+      },
+      includePrivate: { type: 'boolean' }
+    },
+    required: ['user']
+  },
+  render: async (props) => {
+    const { user, includePrivate } = props;
+    
+    return {
+      type: 'div',
+      props: { className: 'user-profile' },
+      children: [
+        {
+          type: 'h2',
+          children: ['User Profile']
+        },
+        {
+          type: 'div',
+          props: { className: 'profile-info' },
+          children: [
+            {
+              type: 'p',
+              children: [`Name: ${user.name}`]
+            },
+            {
+              type: 'p',
+              children: [`ID: ${user.id}`]
+            },
+            includePrivate && {
+              type: 'p',
+              props: { className: 'private-info' },
+              children: [`Email: ${user.email || 'Not provided'}`]
+            }
+          ].filter(Boolean)
+        }
+      ]
+    };
+  }
+});
+
+server.start().then(() => {
+  console.log('🚀 Middleware server running on http://localhost:3000');
+  console.log('Use Authorization: Bearer valid-token-123 header for requests');
+});
+```
+
+### Testing with Authentication
 
 ```bash
-# Valid file processing
+# Test without authentication (should fail)
 curl -X POST http://localhost:3000/ixp/render \
   -H "Content-Type: application/json" \
   -d '{
     "intent": {
-      "name": "process_file",
-      "parameters": {
-        "filename": "data.json",
-        "operation": "parse"
-      }
+      "name": "user_profile",
+      "parameters": {}
     }
   }'
 
-# Invalid file type (should show error)
+# Test with valid authentication
 curl -X POST http://localhost:3000/ixp/render \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer valid-token-123" \
   -d '{
     "intent": {
-      "name": "process_file",
+      "name": "user_profile",
       "parameters": {
-        "filename": "image.png",
-        "operation": "parse"
-      }
-    }
-  }'
-
-# Valid API call
-curl -X POST http://localhost:3000/ixp/render \
-  -H "Content-Type: application/json" \
-  -d '{
-    "intent": {
-      "name": "api_call",
-      "parameters": {
-        "endpoint": "https://api.example.com/data",
-        "method": "GET"
-      }
-    }
-  }'
-
-# Invalid URL (should show error)
-curl -X POST http://localhost:3000/ixp/render \
-  -H "Content-Type: application/json" \
-  -d '{
-    "intent": {
-      "name": "api_call",
-      "parameters": {
-        "endpoint": "not-a-valid-url",
-        "method": "GET"
+        "includePrivate": true
       }
     }
   }'
 ```
-
-## Next Steps
-
-These basic examples demonstrate the core concepts of the IXP Server SDK. To continue learning:
-
-1. **[Advanced Examples](./advanced.md)** - Complex patterns and real-world scenarios
-2. **[Framework Integration](./frameworks.md)** - React, Vue, and Express integration
-3. **[Middleware Guide](../guides/middleware.md)** - Adding custom middleware
-4. **[Plugin Development](../guides/plugins.md)** - Creating custom plugins
-5. **[Testing Guide](../guides/testing.md)** - Testing strategies and best practices
 
 ---
 
