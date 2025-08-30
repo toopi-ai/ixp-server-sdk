@@ -31,6 +31,12 @@ export default {
     '^@/utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@/types/(.*)$': '<rootDir>/src/types/$1'
   },
+  extensionsToTreatAsEsm: ['.ts'],
+  globals: {
+    'ts-jest': {
+      useESM: true
+    }
+  },
   testTimeout: 10000,
   verbose: true,
   clearMocks: true,

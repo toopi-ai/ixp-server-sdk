@@ -26,6 +26,15 @@ This project adheres to a code of conduct. By participating, you are expected to
 - Node.js 16.x or higher
 - npm 7.x or higher (or yarn/pnpm)
 - Git
+- TypeScript 4.5+ (for development)
+
+### Package Information
+
+The IXP Server SDK is published on npm as `ixp-server@1.1.1`:
+- **Registry**: https://registry.npmjs.org/
+- **Installation**: `npm install ixp-server`
+- **Global CLI**: `npm install -g ixp-server`
+- **Repository**: https://github.com/your-org/ixp-server-sdk
 
 ### Development Setup
 
@@ -97,7 +106,8 @@ sdk/
 
 - `npm run dev` - Start development mode with file watching
 - `npm run build` - Build the project for production
-- `npm run test` - Run the test suite
+- `npm run build:examples` - Build example files
+- `npm run test` - Run the test suite (57 tests)
 - `npm run test:watch` - Run tests in watch mode
 - `npm run test:coverage` - Run tests with coverage report
 - `npm run lint` - Run ESLint
@@ -105,6 +115,9 @@ sdk/
 - `npm run typecheck` - Run TypeScript type checking
 - `npm run format` - Format code with Prettier
 - `npm run docs` - Generate documentation
+- `npm run release` - Create and publish a new release
+- `npm run example:minimal` - Run minimal server example
+- `npm run example:advanced` - Run advanced features example
 
 ### Basic Development Workflow
 
@@ -136,16 +149,21 @@ This will:
 When working on render-related features:
 
 ```bash
-# Start the example server with render endpoint
-npm run example:basic
+# Start the minimal example server
+npx tsx examples/minimal-server.ts
 
-# Test render endpoint
-curl -X POST http://localhost:3001/ixp/render \
+# Test render endpoint (in another terminal)
+curl -X POST http://localhost:3000/ixp/render \
   -H "Content-Type: application/json" \
-  -d '{"intent": {"name": "show_welcome", "parameters": {"name": "World"}}}'
+  -d '{"intent": {"name": "hello_world", "parameters": {"name": "World"}}}'
+
+# Test other endpoints
+curl http://localhost:3000/ixp/intents
+curl http://localhost:3000/ixp/components
+curl http://localhost:3000/ixp/health
 
 # Run render-specific tests
-npm test -- render.test.ts
+npm test -- --testNamePattern="render"
 ```
 
 ### Render Architecture Guidelines
@@ -593,24 +611,52 @@ Brief description of changes
 Releases are handled by maintainers using the automated release script:
 
 ```bash
-# Patch release (1.0.0 -> 1.0.1)
+# Patch release (1.1.1 -> 1.1.2)
 node scripts/release.js patch
 
-# Minor release (1.0.0 -> 1.1.0)
+# Minor release (1.1.1 -> 1.2.0)
 node scripts/release.js minor
 
-# Major release (1.0.0 -> 2.0.0)
+# Major release (1.1.1 -> 2.0.0)
 node scripts/release.js major
 ```
 
 The release process:
-1. Runs all tests and checks
-2. Builds the project
+1. Runs all tests and checks (57 tests must pass)
+2. Builds the project and examples
 3. Updates version in package.json
-4. Generates changelog
+4. Generates changelog entries
 5. Creates git tag
-6. Publishes to npm
+6. Publishes to npm registry
 7. Creates GitHub release
+
+### Manual Release Steps
+
+For manual releases:
+
+```bash
+# 1. Ensure you're logged into npm
+npm whoami
+
+# 2. Run all tests
+npm test
+
+# 3. Build the project
+npm run build
+
+# 4. Update version
+npm version patch|minor|major
+
+# 5. Publish to npm
+npm publish
+
+# 6. Push changes and tags
+git push origin main --tags
+```
+
+### Current Version
+
+The latest published version is `1.1.1`, available on npm registry.
 
 ## Getting Help
 

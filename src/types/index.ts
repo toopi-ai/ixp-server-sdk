@@ -43,6 +43,7 @@ export interface ComponentDefinition {
     allowEval: boolean;
     maxBundleSize: string;
     sandboxed: boolean;
+    csp?: Record<string, any>;
   };
 }
 
@@ -65,8 +66,52 @@ export interface IntentResponse {
 // Configuration Interfaces
 export interface IXPServerConfig {
   intents?: string | IntentDefinition[];
-  components?: string | Record<string, ComponentDefinition>;
+  components?: string | Record<string, ComponentDefinition> | {
+    source?: string | Record<string, ComponentDefinition>;
+    development?: {
+      enabled?: boolean;
+      hotReload?: boolean;
+      watchFiles?: boolean;
+      buildOnChange?: boolean;
+      port?: number;
+      cors?: {
+        origins?: string[];
+        credentials?: boolean;
+      };
+    };
+    build?: {
+      outputDir?: string;
+      minify?: boolean;
+      sourceMaps?: boolean;
+      target?: string;
+      externals?: string[];
+    };
+    validation?: {
+      strict?: boolean;
+      propsSchema?: boolean;
+      bundleSize?: {
+        maxSize?: string;
+        warnSize?: string;
+      };
+      performance?: {
+        maxTTI?: string;
+        maxBundleSize?: string;
+      };
+    };
+    security?: {
+      defaultSandboxed?: boolean;
+      allowEval?: boolean;
+      defaultCSP?: Record<string, any>;
+      allowedOrigins?: string[];
+    };
+    caching?: {
+      enabled?: boolean;
+      ttl?: number;
+      strategy?: 'memory' | 'redis' | 'file';
+    };
+  };
   port?: number;
+  theme?: Record<string, any>;
   cors?: {
     origins?: string[];
     credentials?: boolean;

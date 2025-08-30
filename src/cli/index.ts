@@ -19,7 +19,9 @@ const program = new Command();
 program
   .name('ixp-server')
   .description('CLI tool for creating and managing IXP servers')
-  .version('1.0.0');
+  .version('1.1.1')
+  .option('-v, --verbose', 'Enable verbose output')
+  .option('--no-color', 'Disable colored output');
 
 /**
  * Create a new IXP server project
@@ -53,6 +55,24 @@ program
       await initProject('.', options);
     } catch (error) {
       console.error(chalk.red('Error initializing project:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Start production server
+ */
+program
+  .command('start')
+  .description('Start production server')
+  .option('-p, --port <port>', 'Port to run server on', '3001')
+  .option('-c, --config <path>', 'Path to config file', './ixp.config.js')
+  .option('-e, --env <env>', 'Environment mode', 'production')
+  .action(async (options) => {
+    try {
+      await startProductionServer(options);
+    } catch (error) {
+      console.error(chalk.red('Error starting server:'), error);
       process.exit(1);
     }
   });
@@ -101,11 +121,63 @@ program
   .description('Validate IXP configuration files')
   .option('-i, --intents <path>', 'Path to intents file', './config/intents.json')
   .option('-c, --components <path>', 'Path to components file', './config/components.json')
+  .option('--strict', 'Enable strict validation mode')
   .action(async (options) => {
     try {
       await validateConfig(options);
     } catch (error) {
       console.error(chalk.red('Validation error:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Test server functionality
+ */
+program
+  .command('test')
+  .description('Run tests for IXP server')
+  .option('-p, --port <port>', 'Port to test against', '3001')
+  .option('-u, --url <url>', 'Base URL to test against')
+  .option('--timeout <ms>', 'Request timeout in milliseconds', '5000')
+  .action(async (options) => {
+    try {
+      await runTests(options);
+    } catch (error) {
+      console.error(chalk.red('Tests failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Show server information
+ */
+program
+  .command('info')
+  .description('Display server and configuration information')
+  .option('-c, --config <path>', 'Path to config file', './ixp.config.js')
+  .action(async (options) => {
+    try {
+      await showInfo(options);
+    } catch (error) {
+      console.error(chalk.red('Error getting info:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Generate documentation
+ */
+program
+  .command('docs')
+  .description('Generate API documentation')
+  .option('-o, --output <path>', 'Output directory', './docs')
+  .option('-f, --format <format>', 'Documentation format', 'html')
+  .action(async (options) => {
+    try {
+      await generateDocs(options);
+    } catch (error) {
+      console.error(chalk.red('Error generating docs:'), error);
       process.exit(1);
     }
   });
@@ -264,7 +336,7 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
   // Generate package.json
   const packageJson = {
     name: path.basename(projectPath),
-    version: '1.0.0',
+    version: '1.1.1',
     description: 'IXP Server project',
     main: `src/index.${ext}`,
     scripts: {
@@ -276,7 +348,7 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
       'generate:component': 'ixp-server generate:component'
     },
     dependencies: {
-      'ixp-server': '^1.0.0'
+      'ixp-server': '^1.1.1'
     },
     devDependencies: isTypeScript ? {
       'typescript': '^5.3.3',
@@ -408,7 +480,7 @@ async function generateExampleIntents(filePath: string): Promise<void> {
           }
         },
         component: 'WelcomeMessage',
-        version: '1.0.0',
+        version: '1.1.1',
         crawlable: true
       }
     ]
@@ -433,7 +505,7 @@ async function generateExampleComponents(filePath: string): Promise<void> {
             name: { type: 'string' }
           }
         },
-        version: '1.0.0',
+        version: '1.1.1',
         allowedOrigins: ['*'],
         bundleSize: '5KB',
         performance: {
@@ -545,7 +617,7 @@ async function generateIntent(name: string, options: any): Promise<void> {
       properties: {}
     },
     component: config.component || options.component || name.charAt(0).toUpperCase() + name.slice(1),
-    version: '1.0.0',
+    version: '1.1.1',
     crawlable: false
   };
   
@@ -596,7 +668,7 @@ async function generateComponent(name: string, options: any): Promise<void> {
       type: 'object',
       properties: {}
     },
-    version: '1.0.0',
+    version: '1.1.1',
     allowedOrigins: ['*'],
     bundleSize: '10KB',
     performance: {
@@ -694,12 +766,47 @@ async function validateConfig(options: any): Promise<void> {
  * Start development server
  */
 async function startDevServer(options: any): Promise<void> {
-  console.log(chalk.blue('Starting development server...'));
+  console.log(chalk.blue('🚀 Starting development server...'));
   
-  // This would import and start the actual server
-  // For now, just show a message
-  console.log(chalk.yellow('Development server functionality would be implemented here'));
-  console.log(chalk.green(`Server would start on port ${options.port}`));
+  try {
+    const { createDevServer } = await import('../index.js');
+    
+    const config = {
+      intents: options.intents || './config/intents.json',
+      components: options.components || './config/components.json',
+      port: options.port || 3001,
+      logging: {
+        level: 'debug' as const,
+        format: 'text' as const
+      }
+    };
+    
+    const server = createDevServer(config);
+    
+    // Setup graceful shutdown
+    process.on('SIGINT', async () => {
+      console.log(chalk.yellow('\n🛑 Shutting down development server...'));
+      await server.close();
+      process.exit(0);
+    });
+    
+    process.on('SIGTERM', async () => {
+      console.log(chalk.yellow('\n🛑 Shutting down development server...'));
+      await server.close();
+      process.exit(0);
+    });
+    
+    await server.listen();
+    
+    console.log(chalk.green('✅ Development server started successfully!'));
+    console.log(chalk.cyan(`🌐 Server URL: http://localhost:${config.port}`));
+    console.log(chalk.cyan('📁 File watching enabled for hot reload'));
+    console.log(chalk.gray('Press Ctrl+C to stop the server'));
+    
+  } catch (error) {
+    console.error(chalk.red('❌ Failed to start development server:'), error);
+    process.exit(1);
+  }
 }
 
 /**
@@ -708,9 +815,363 @@ async function startDevServer(options: any): Promise<void> {
 async function buildProject(options: any): Promise<void> {
   console.log(chalk.blue('Building project for production...'));
   
-  // This would implement the build process
+  // TODO: Implement actual build logic
   console.log(chalk.yellow('Build functionality would be implemented here'));
   console.log(chalk.green(`Output would be written to ${options.output}`));
+}
+
+/**
+ * Start production server
+ */
+async function startProductionServer(options: any): Promise<void> {
+  console.log(chalk.blue('🚀 Starting production server...'));
+  
+  try {
+    const { createIXPServer } = await import('../index.js');
+    
+    const config = {
+      intents: './config/intents.json',
+      components: './config/components.json',
+      port: options.port || 3001,
+      logging: {
+        level: 'info' as const,
+        format: 'json' as const
+      }
+    };
+    
+    const server = createIXPServer(config);
+    
+    // Graceful shutdown handlers
+    process.on('SIGINT', async () => {
+      console.log(chalk.yellow('\n🛑 Shutting down server...'));
+      await server.close();
+      process.exit(0);
+    });
+    
+    process.on('SIGTERM', async () => {
+      console.log(chalk.yellow('\n🛑 Shutting down server...'));
+      await server.close();
+      process.exit(0);
+    });
+    
+    await server.listen();
+    
+    console.log(chalk.green('✅ Production server started successfully!'));
+    console.log(chalk.cyan(`🌐 Server URL: http://localhost:${config.port}`));
+    console.log(chalk.gray('Press Ctrl+C to stop the server'));
+    
+  } catch (error) {
+    console.error(chalk.red('❌ Failed to start production server:'), error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Run tests for IXP server
+ */
+async function runTests(options: any): Promise<void> {
+  console.log(chalk.blue('🧪 Running IXP server tests...'));
+  
+  const baseUrl = options.url || `http://localhost:${options.port}`;
+  const timeout = parseInt(options.timeout) || 5000;
+  
+  const tests = [
+    {
+      name: 'Health Check',
+      endpoint: '/ixp/health',
+      method: 'GET',
+      expectedStatus: 200
+    },
+    {
+      name: 'List Intents',
+      endpoint: '/ixp/intents',
+      method: 'GET',
+      expectedStatus: 200
+    },
+    {
+      name: 'List Components',
+      endpoint: '/ixp/components',
+      method: 'GET',
+      expectedStatus: 200
+    },
+    {
+      name: 'Crawler Content',
+      endpoint: '/ixp/crawler_content',
+      method: 'GET',
+      expectedStatus: 200
+    }
+  ];
+  
+  let passed = 0;
+  let failed = 0;
+  
+  for (const test of tests) {
+    try {
+      console.log(chalk.gray(`  Testing: ${test.name}...`));
+      
+      const response = await fetch(`${baseUrl}${test.endpoint}`, {
+        method: test.method,
+        signal: AbortSignal.timeout(timeout)
+      });
+      
+      if (response.status === test.expectedStatus) {
+        console.log(chalk.green(`  ✅ ${test.name} - PASSED`));
+        passed++;
+      } else {
+        console.log(chalk.red(`  ❌ ${test.name} - FAILED (Status: ${response.status})`));
+        failed++;
+      }
+    } catch (error) {
+       const errorMessage = error instanceof Error ? error.message : String(error);
+       console.log(chalk.red(`  ❌ ${test.name} - FAILED (${errorMessage})`));
+       failed++;
+     }
+  }
+  
+  console.log(chalk.blue('\n📊 Test Results:'));
+  console.log(chalk.green(`  Passed: ${passed}`));
+  console.log(chalk.red(`  Failed: ${failed}`));
+  console.log(chalk.cyan(`  Total: ${passed + failed}`));
+  
+  if (failed > 0) {
+    console.log(chalk.red('\n❌ Some tests failed'));
+    process.exit(1);
+  } else {
+    console.log(chalk.green('\n✅ All tests passed!'));
+  }
+}
+
+/**
+ * Show server and configuration information
+ */
+async function showInfo(options: any): Promise<void> {
+  console.log(chalk.blue('📋 IXP Server Information\n'));
+  
+  // Package info
+  console.log(chalk.cyan('Package Information:'));
+  console.log(`  Name: ixp-server`);
+  console.log(`  Version: 1.1.1`);
+  console.log(`  CLI Version: 1.1.1\n`);
+  
+  // Configuration files
+  console.log(chalk.cyan('Configuration:'));
+  const intentsPath = './config/intents.json';
+  const componentsPath = './config/components.json';
+  
+  try {
+    if (await fs.pathExists(intentsPath)) {
+      const intents = await fs.readJSON(intentsPath);
+      console.log(`  Intents: ${intents.intents?.length || 0} defined`);
+    } else {
+      console.log(`  Intents: File not found (${intentsPath})`);
+    }
+    
+    if (await fs.pathExists(componentsPath)) {
+      const components = await fs.readJSON(componentsPath);
+      const componentCount = Object.keys(components.components || {}).length;
+      console.log(`  Components: ${componentCount} defined`);
+    } else {
+      console.log(`  Components: File not found (${componentsPath})`);
+    }
+  } catch (error) {
+     const errorMessage = error instanceof Error ? error.message : String(error);
+     console.log(chalk.red(`  Error reading config: ${errorMessage}`));
+   }
+  
+  // Environment info
+  console.log(chalk.cyan('\nEnvironment:'));
+  console.log(`  Node.js: ${process.version}`);
+  console.log(`  Platform: ${process.platform}`);
+  console.log(`  Architecture: ${process.arch}`);
+  console.log(`  Working Directory: ${process.cwd()}`);
+  
+  // Available commands
+  console.log(chalk.cyan('\nAvailable Commands:'));
+  console.log(`  create <name>     Create new IXP server project`);
+  console.log(`  init              Initialize IXP server in current directory`);
+  console.log(`  dev               Start development server`);
+  console.log(`  start             Start production server`);
+  console.log(`  build             Build project for production`);
+  console.log(`  test              Run server tests`);
+  console.log(`  validate          Validate configuration files`);
+  console.log(`  generate:intent   Generate new intent`);
+  console.log(`  generate:component Generate new component`);
+  console.log(`  docs              Generate API documentation`);
+  console.log(`  info              Show this information`);
+}
+
+/**
+ * Generate API documentation
+ */
+async function generateDocs(options: any): Promise<void> {
+  console.log(chalk.blue('📚 Generating API documentation...'));
+  
+  const outputDir = path.resolve(options.output);
+  await fs.ensureDir(outputDir);
+  
+  // Generate basic documentation structure
+  const docsContent = {
+    'index.html': generateDocsIndex(),
+    'api.html': generateApiDocs(),
+    'examples.html': generateExamplesDocs()
+  };
+  
+  for (const [filename, content] of Object.entries(docsContent)) {
+    await fs.writeFile(path.join(outputDir, filename), content);
+    console.log(chalk.green(`  ✅ Generated ${filename}`));
+  }
+  
+  console.log(chalk.green(`\n✅ Documentation generated in ${outputDir}`));
+  console.log(chalk.cyan(`Open ${path.join(outputDir, 'index.html')} in your browser`));
+}
+
+/**
+ * Generate documentation index page
+ */
+function generateDocsIndex(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IXP Server Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .nav { margin: 20px 0; }
+        .nav a { margin-right: 20px; text-decoration: none; color: #007acc; }
+        .nav a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>IXP Server SDK Documentation</h1>
+    <p>Welcome to the IXP Server SDK documentation. This SDK provides tools for building Intent Exchange Protocol (IXP) servers.</p>
+    
+    <div class="nav">
+        <a href="api.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+    </div>
+    
+    <h2>Quick Start</h2>
+    <p>Get started with IXP Server in minutes:</p>
+    <pre><code>npm install -g ixp-server
+ixp-server create my-server
+cd my-server
+npm install
+npm run dev</code></pre>
+    
+    <h2>Features</h2>
+    <ul>
+        <li>Intent-based routing</li>
+        <li>Component rendering</li>
+        <li>Hot reload development</li>
+        <li>Production-ready builds</li>
+        <li>CLI tools</li>
+    </ul>
+</body>
+</html>`;
+}
+
+/**
+ * Generate API documentation page
+ */
+function generateApiDocs(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference - IXP Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .endpoint { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .method { font-weight: bold; color: #007acc; }
+    </style>
+</head>
+<body>
+    <h1>API Reference</h1>
+    <p><a href="index.html">← Back to Documentation</a></p>
+    
+    <h2>Endpoints</h2>
+    
+    <div class="endpoint">
+        <h3><span class="method">GET</span> /ixp/health</h3>
+        <p>Health check endpoint</p>
+        <p><strong>Response:</strong> <code>{ "status": "ok", "timestamp": "..." }</code></p>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method">GET</span> /ixp/intents</h3>
+        <p>List all available intents</p>
+        <p><strong>Response:</strong> Array of intent definitions</p>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method">GET</span> /ixp/components</h3>
+        <p>List all available components</p>
+        <p><strong>Response:</strong> Object containing component definitions</p>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method">POST</span> /ixp/render</h3>
+        <p>Render a component for an intent</p>
+        <p><strong>Body:</strong> <code>{ "intent": "intent_name", "parameters": {...} }</code></p>
+        <p><strong>Response:</strong> Rendered component HTML</p>
+    </div>
+</body>
+</html>`;
+}
+
+/**
+ * Generate examples documentation page
+ */
+function generateExamplesDocs(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examples - IXP Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Examples</h1>
+    <p><a href="index.html">← Back to Documentation</a></p>
+    
+    <h2>Basic Server</h2>
+    <pre><code>import { createServer } from 'ixp-server';
+
+const server = createServer({
+  intents: './config/intents.json',
+  components: './config/components.json',
+  port: 3001
+});
+
+server.listen().then(() => {
+  console.log('Server running on port 3001');
+});</code></pre>
+    
+    <h2>CLI Usage</h2>
+    <pre><code># Create new project
+ixp-server create my-project
+
+# Initialize in existing directory
+ixp-server init
+
+# Start development server
+ixp-server dev
+
+# Run tests
+ixp-server test
+
+# Generate intent
+ixp-server generate:intent welcome</code></pre>
+</body>
+</html>`;
 }
 
 // Parse command line arguments

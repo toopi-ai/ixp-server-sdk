@@ -1,6 +1,7 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
 import type {
   IXPServerConfig,
   IXPServerInstance,
@@ -14,6 +15,7 @@ import type {
 } from '../types/index';
 import { IntentRegistry } from './IntentRegistry';
 import { ComponentRegistry } from './ComponentRegistry';
+import { ComponentRenderer } from './ComponentRenderer';
 import { IntentResolver } from './IntentResolver';
 import { IXPError, ErrorFactory, toErrorResponse, getErrorStatusCode } from '../utils/errors';
 import { Logger, createLogger } from '../utils/logger';
@@ -27,6 +29,7 @@ export class IXPServer implements IXPServerInstance {
   public readonly config: IXPServerConfig;
   public readonly intentRegistry: IntentRegistry;
   public readonly componentRegistry: ComponentRegistry;
+  public readonly componentRenderer: ComponentRenderer;
   public readonly intentResolver: IntentResolver;
   
   private plugins: Map<string, IXPPlugin> = new Map();
@@ -44,7 +47,11 @@ export class IXPServer implements IXPServerInstance {
     
     // Initialize registries
     this.intentRegistry = new IntentRegistry(this.config.intents);
-    this.componentRegistry = new ComponentRegistry(this.config.components);
+    
+    // Extract component source from configuration
+    const componentSource = this.extractComponentSource(this.config.components);
+    this.componentRegistry = new ComponentRegistry(componentSource);
+    this.componentRenderer = new ComponentRenderer(this.componentRegistry);
     this.intentResolver = new IntentResolver(
       this.intentRegistry,
       this.componentRegistry,
@@ -236,6 +243,201 @@ export class IXPServer implements IXPServerInstance {
 
         const result = await this.intentResolver.resolveIntent(intent, options);
         res.json(result);
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // POST /ixp/components/render - Direct Component Rendering
+    this.app.post('/components/render', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { componentName, props, options = {} } = req.body;
+        
+        if (!componentName) {
+          throw ErrorFactory.invalidRequest('Missing required parameter \'componentName\'');
+        }
+
+        // Validate origin if component has restrictions
+        const origin = req.get('Origin');
+        if (origin) {
+          const componentDef = this.componentRegistry.get(componentName);
+          if (componentDef && !this.componentRegistry.isOriginAllowed(componentName, origin)) {
+            throw ErrorFactory.originNotAllowed(origin, componentName);
+          }
+        }
+
+        const renderOptions = {
+          componentName,
+          props: props || {},
+          intentId: options.intentId,
+          theme: options.theme || this.config.theme || {},
+          apiBase: options.apiBase || '/ixp',
+          ssr: options.ssr !== false,
+          hydrate: options.hydrate !== false,
+          timeout: options.timeout || 5000
+        };
+
+        const result = await this.componentRenderer.render(renderOptions);
+        
+        // Return different formats based on Accept header
+        const acceptHeader = req.get('Accept');
+        if (acceptHeader?.includes('text/html')) {
+          // Return full HTML page
+          const html = this.componentRenderer.generatePage(result, {
+            title: `${componentName} Component`,
+            meta: {
+              'component-name': componentName,
+              'render-time': result.performance.renderTime.toString()
+            }
+          });
+          res.setHeader('Content-Type', 'text/html');
+          res.send(html);
+        } else {
+          // Return JSON response
+          res.json({
+            ...result,
+            hydrationScript: this.componentRenderer.generateHydrationScript(result)
+          });
+        }
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // GET /ixp/components/:name - Get Component Definition
+    this.app.get('/components/:name', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { name } = req.params;
+        
+        if (!name) {
+          throw ErrorFactory.invalidRequest('Component name is required');
+        }
+        
+        const component = this.componentRegistry.get(name);
+        
+        if (!component) {
+          throw ErrorFactory.componentNotFound(name);
+        }
+
+        // Validate origin if component has restrictions
+        const origin = req.get('Origin');
+        if (origin && !this.componentRegistry.isOriginAllowed(name, origin)) {
+          throw ErrorFactory.originNotAllowed(origin, name);
+        }
+
+        res.json({
+          component,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // GET /ixp/components/:name/bundle - Serve Component Bundle
+    this.app.get('/components/:name/bundle', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { name } = req.params;
+        
+        if (!name) {
+          throw ErrorFactory.invalidRequest('Component name is required');
+        }
+        
+        const component = this.componentRegistry.get(name);
+        
+        if (!component) {
+          throw ErrorFactory.componentNotFound(name);
+        }
+
+        // Validate origin if component has restrictions
+        const origin = req.get('Origin');
+        if (origin && !this.componentRegistry.isOriginAllowed(name, origin)) {
+          throw ErrorFactory.originNotAllowed(origin, name);
+        }
+
+        // Serve the bundle file
+        const bundlePath = component.remoteUrl.startsWith('/') 
+          ? component.remoteUrl.substring(1) 
+          : component.remoteUrl;
+        
+        res.setHeader('Content-Type', 'application/javascript');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.sendFile(bundlePath, { root: process.cwd() });
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // GET /ixp/components/:name/css - Serve Component CSS
+    this.app.get('/components/:name/css', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { name } = req.params;
+        
+        if (!name) {
+          throw ErrorFactory.invalidRequest('Component name is required');
+        }
+        
+        const component = this.componentRegistry.get(name);
+        
+        if (!component) {
+          throw ErrorFactory.componentNotFound(name);
+        }
+
+        // Validate origin if component has restrictions
+        const origin = req.get('Origin');
+        if (origin && !this.componentRegistry.isOriginAllowed(name, origin)) {
+          throw ErrorFactory.originNotAllowed(origin, name);
+        }
+
+        // Serve the CSS file
+        const cssPath = component.remoteUrl.replace('.esm.js', '.css');
+        const fullCssPath = cssPath.startsWith('/') ? cssPath.substring(1) : cssPath;
+        
+        res.setHeader('Content-Type', 'text/css');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.sendFile(fullCssPath, { root: process.cwd() });
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // GET /ixp/sdk - Serve IXP SDK runtime
+    this.app.get('/sdk', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const sdkPath = path.resolve(__dirname, '../runtime/ixp-sdk.js');
+        
+        res.setHeader('Content-Type', 'application/javascript');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.sendFile(sdkPath);
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // GET /ixp/sdk/config - Serve SDK configuration
+    this.app.get('/sdk/config', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const config = {
+          theme: this.config.theme || {},
+          version: '1.1.0',
+          endpoints: {
+            intents: '/ixp/intents',
+            components: '/ixp/components',
+            render: '/ixp/render',
+            sdk: '/ixp/sdk',
+            health: '/ixp/health',
+            metrics: this.config.metrics?.endpoint || '/ixp/metrics'
+          },
+          cors: {
+            origins: this.config.cors?.origins || ['http://localhost:3000']
+          }
+        };
+        
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes cache
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.json(config);
       } catch (error) {
         next(error);
       }
@@ -464,6 +666,23 @@ export class IXPServer implements IXPServerInstance {
    */
   private async getMetrics(): Promise<MetricsData> {
     return this.metricsService.getMetrics();
+  }
+
+  /**
+   * Extract component source from configuration
+   */
+  private extractComponentSource(components: IXPServerConfig['components']): string | Record<string, any> | undefined {
+    if (!components) {
+      return undefined;
+    }
+    
+    // If it's a string or plain object, return as-is
+    if (typeof components === 'string' || !('source' in components)) {
+      return components;
+    }
+    
+    // If it's the new configuration object, extract the source
+    return components.source;
   }
 
   /**

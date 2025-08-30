@@ -17,7 +17,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Built-in A/B testing framework for components
 - Enhanced CLI with interactive project setup
 
-## [1.1.0] - 2024-01-29
+## [1.1.1] - 2025-01-20
+
+### Published
+- **NPM Publication**: Successfully published to npm registry as `ixp-server@1.1.1`
+- **Package Availability**: Now available for installation via `npm install ixp-server`
+- **Global CLI**: Available globally via `npm install -g ixp-server`
+
+### Fixed
+- TypeScript compilation errors in advanced examples
+- Null safety checks in component sorting logic
+- Build process optimization for production deployment
+
+### Enhanced
+- **Documentation**: Comprehensive updates to README, CONTRIBUTING, and CHANGELOG
+- **Examples**: Four complete example servers (minimal, React, Vue, advanced features)
+- **Testing**: All 57 tests passing with comprehensive coverage
+- **CLI Tools**: Enhanced project scaffolding and validation commands
+
+### Distribution
+- **Registry**: Available on https://registry.npmjs.org/
+- **Maintainer**: Published by toopi.ai
+- **License**: MIT License
+- **Repository**: GitHub repository with full source code
+
+### Installation
+```bash
+# Install as dependency
+npm install ixp-server
+
+# Install CLI globally
+npm install -g ixp-server
+
+# Create new project
+ixp-server create my-project
+```
+
+## [1.1.0] - 2025-08-29
 
 ### Added
 - **IXP Render Endpoint**: Complete `/ixp/render` POST endpoint for intent-to-component resolution
@@ -60,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Data providers should implement the new `resolveIntentData` method for enhanced functionality
 - CLI-generated projects now include render endpoint by default
 
-## [1.0.2] - 2024-01-28
+## [1.0.2] - 2025-08-28
 
 ### Fixed
 - CLI binary configuration and module resolution issues
@@ -68,14 +104,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Template generation errors in CLI-created projects
 - Plugin initialization in generated project templates
 
-## [1.0.1] - 2024-01-27
+## [1.0.1] - 2025-08-27
 
 ### Fixed
 - Binary path configuration in package.json
 - CLI command availability after global installation
 - Module type configuration for proper ESM support
 
-## [1.0.0] - 2024-01-26
+## [1.0.0] - 2025-08-26
 
 ### Added
 - Initial release of IXP Server SDK
@@ -96,6 +132,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## Release Notes
+
+### Version 1.1.1 - Production Release
+
+This patch release marks the official publication of the IXP Server SDK to npm, making it publicly available for developers worldwide.
+
+**📦 NPM Publication:**
+- Published to npm registry as `ixp-server@1.1.1`
+- Available for installation via standard npm commands
+- Global CLI tool available for project scaffolding
+- Comprehensive documentation and examples included
+
+**🔧 Bug Fixes:**
+- Fixed TypeScript compilation errors in advanced examples
+- Added null safety checks for component sorting operations
+- Optimized build process for production deployment
+- Resolved ESM import/export compatibility issues
+
+**📚 Documentation:**
+- Updated README with comprehensive API documentation
+- Enhanced CONTRIBUTING guide with render functionality details
+- Complete CHANGELOG with all version history
+- Four practical examples demonstrating different use cases
+
+**🚀 Getting Started:**
+```bash
+# Quick installation
+npm install ixp-server
+
+# Create your first IXP server
+import { createIXPServer } from 'ixp-server';
+
+const server = createIXPServer({
+  intents: './intents.json',
+  components: './components.json',
+  port: 3001
+});
+
+server.listen();
+```
 
 ### Version 1.1.0 - Render Functionality Release
 

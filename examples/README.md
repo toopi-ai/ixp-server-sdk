@@ -1,54 +1,162 @@
 # IXP Server SDK Examples
 
-This directory contains comprehensive examples demonstrating how to use the IXP Server SDK to build Intent Exchange Protocol servers.
+This directory contains practical examples demonstrating how to use the IXP Server SDK in different scenarios and with various frameworks.
 
-## Basic Server Example
+## Available Examples
 
-The `basic-server.ts` file demonstrates a complete IXP server implementation using the SDK with:
+### 1. minimal-server.ts
+**Perfect for getting started quickly**
+- Simplest possible IXP server setup
+- Single intent and component
+- Minimal configuration
+- Great for learning the basics
 
-### Features Demonstrated
+**Run:** `npx tsx examples/minimal-server.ts`  
+**Port:** 3000
 
-- **Intent Definitions**: How to define intents with parameters, validation, and component mapping
-- **Component Registry**: Registering React components with security policies and performance metrics
-- **Plugin System**: Integration with Swagger documentation, health monitoring, and metrics collection
-- **Middleware Stack**: Rate limiting, request validation, origin validation, and request ID tracking
-- **Data Providers**: Custom data sources for dynamic content and crawler support
-- **Error Handling**: Comprehensive error handling and graceful shutdown
-- **Development Features**: Enhanced logging and debugging capabilities
+### 2. basic-server.ts
+**Comprehensive foundation example**
+- Intent definitions with proper TypeScript typing
+- Component registry with React components
+- Plugin integration (Swagger, health monitoring, metrics)
+- Middleware usage (rate limiting, security, logging)
+- Custom data providers for dynamic content
+- Error handling and graceful shutdown
+- Development server integration
 
-### Quick Start
+**Run:** `npx tsx examples/basic-server.ts`  
+**Port:** 3001
 
-1. **Build the SDK**:
+### 3. react-components-server.ts
+**React-focused implementation**
+- React-specific component definitions
+- Component development workflow
+- TypeScript support for React props
+- Interactive components (UserProfile, InteractiveChart, FormBuilder)
+- React dev server health checks
+
+**Run:** `npx tsx examples/react-components-server.ts`  
+**Port:** 3002
+
+### 4. vue-components-server.ts
+**Vue.js-optimized server**
+- Vue-specific component definitions
+- Composition API and Options API support
+- Vue 3 features integration
+- Interactive components (TodoList, DataTable, ImageGallery)
+- Vue transitions and reactivity
+
+**Run:** `npx tsx examples/vue-components-server.ts`  
+**Port:** 3003
+
+### 5. advanced-features-server.ts
+**Enterprise-ready configuration**
+- Complex intent validation with nested schemas
+- Advanced data providers with error handling
+- Comprehensive health monitoring
+- Performance metrics and monitoring
+- Advanced middleware stack
+- Production-ready configurations
+
+**Run:** `npx tsx examples/advanced-features-server.ts`  
+**Port:** 3004
+
+## Quick Start
+
+1. **Build the SDK first:**
    ```bash
    npm run build
    ```
 
-2. **Run the example**:
+2. **Start with the minimal example:**
    ```bash
-   node examples/basic-server.ts
+   npx tsx examples/minimal-server.ts
    ```
 
-3. **Test the server**:
+3. **Test the server:**
    ```bash
-   # Check server health
-   curl http://localhost:3001/ixp/health
-   
-   # Get available intents
-   curl http://localhost:3001/ixp/intents
-   
-   # Render a component
-   curl -X POST http://localhost:3001/ixp/render \
+   curl -X POST http://localhost:3000/ixp/render \
      -H "Content-Type: application/json" \
      -d '{
-       "intent": {
-         "name": "show_welcome",
-         "parameters": { "name": "World", "theme": "light" }
-       }
-     }'
+        "intent": {
+          "name": "hello_world",
+          "parameters": { "name": "World" }
+        }
+      }'
    ```
 
-4. **View API Documentation**:
-   Open http://localhost:3001/ixp/api-docs in your browser
+## Example Comparison
+
+| Example | Complexity | Use Case | Components | Features |
+|---------|------------|----------|------------|----------|
+| **minimal-server** | ⭐ | Learning, prototyping | 1 | Basic setup |
+| **basic-server** | ⭐⭐⭐ | General purpose | 2 | Full feature set |
+| **react-components** | ⭐⭐⭐ | React apps | 3 | React-specific |
+| **vue-components** | ⭐⭐⭐ | Vue apps | 3 | Vue-specific |
+| **advanced-features** | ⭐⭐⭐⭐⭐ | Enterprise | 2 | Production-ready |
+
+## Key Features Demonstrated
+
+### Core Concepts
+- **Intent System**: Define user intents with JSON Schema validation
+- **Component Registry**: Manage React/Vue/Vanilla JS components
+- **Server-Side Rendering**: Render components on the server
+- **Data Providers**: Supply dynamic data to components
+
+### Advanced Features
+- **Plugin Architecture**: Extend functionality with plugins
+- **Middleware Stack**: Add cross-cutting concerns
+- **Health Monitoring**: Built-in health checks and metrics
+- **API Documentation**: Auto-generated Swagger docs
+- **Development Workflow**: Hot reload and component development
+- **Security**: CORS, validation, and sandboxing
+- **Performance**: Bundle optimization and caching
+
+### Framework-Specific
+- **React Integration**: Props validation, TypeScript support
+- **Vue Integration**: Composition API, reactivity, transitions
+- **Component Lifecycle**: Registration, building, rendering
+
+## Testing the Examples
+
+Each example includes specific test commands in their console output. Here are some common patterns:
+
+### Basic Rendering Test
+```bash
+curl -X POST http://localhost:PORT/ixp/render \
+  -H "Content-Type: application/json" \
+  -d '{
+    "intent": {
+      "name": "INTENT_NAME",
+      "parameters": { /* intent parameters */ }
+    }
+  }'
+```
+
+### Health Check
+```bash
+curl http://localhost:PORT/ixp/health
+```
+
+### API Documentation
+Open `http://localhost:PORT/ixp/api-docs` in your browser
+
+### Available Endpoints
+All examples provide these standard endpoints:
+- `GET /ixp/intents` - List all intents
+- `GET /ixp/components` - List all components
+- `POST /ixp/render` - Render a component
+- `GET /ixp/health` - Health status
+- `GET /ixp/metrics` - Performance metrics
+- `GET /ixp/api-docs` - Interactive API documentation
+
+## Development Workflow
+
+1. **Start with minimal-server.ts** to understand the basics
+2. **Explore basic-server.ts** for comprehensive features
+3. **Choose framework-specific examples** (React or Vue) for your stack
+4. **Study advanced-features-server.ts** for production patterns
+5. **Adapt examples** for your specific use case
 
 ### Server Configuration
 

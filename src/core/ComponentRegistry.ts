@@ -68,48 +68,199 @@ export class ComponentRegistry implements IComponentRegistry {
       throw new Error('Component must have a valid name');
     }
 
-    if (!component.framework || typeof component.framework !== 'string') {
-      throw new Error(`Component "${component.name}" must specify a framework`);
+    if (!component.framework || !['react', 'vue', 'vanilla'].includes(component.framework)) {
+      throw new Error(`Component "${component.name}" must have a valid framework (react, vue, vanilla)`);
     }
 
     if (!component.remoteUrl || typeof component.remoteUrl !== 'string') {
-      throw new Error(`Component "${component.name}" must have a remoteUrl`);
+      throw new Error(`Component "${component.name}" must have a valid remoteUrl`);
     }
 
     // Validate URL format
     try {
-      new URL(component.remoteUrl);
+      new URL(component.remoteUrl, 'http://localhost');
     } catch {
       throw new Error(`Component "${component.name}" has invalid remoteUrl format`);
     }
 
     if (!component.exportName || typeof component.exportName !== 'string') {
-      throw new Error(`Component "${component.name}" must have an exportName`);
+      throw new Error(`Component "${component.name}" must have a valid exportName`);
     }
 
     if (!component.propsSchema || typeof component.propsSchema !== 'object') {
-      throw new Error(`Component "${component.name}" must have a propsSchema`);
-    }
-
-    if (component.propsSchema.type !== 'object') {
-      throw new Error(`Component "${component.name}" propsSchema must be of type "object"`);
+      throw new Error(`Component "${component.name}" must have a valid propsSchema object`);
     }
 
     if (!component.version || typeof component.version !== 'string') {
-      throw new Error(`Component "${component.name}" must have a version`);
+      throw new Error(`Component "${component.name}" must have a valid version`);
     }
 
     if (!Array.isArray(component.allowedOrigins)) {
       throw new Error(`Component "${component.name}" must have allowedOrigins array`);
     }
 
-    // Validate security policy
-    if (component.securityPolicy) {
-      if (typeof component.securityPolicy.allowEval !== 'boolean') {
-        throw new Error(`Component "${component.name}" securityPolicy.allowEval must be boolean`);
+    // Enhanced validation
+    this.validatePropsSchema(component);
+    this.validateSecurityPolicy(component);
+    this.validatePerformanceBudgets(component);
+  }
+
+  /**
+   * Validate props schema structure
+   */
+  private validatePropsSchema(component: ComponentDefinition): void {
+    const schema = component.propsSchema;
+    
+    if (!schema.type || schema.type !== 'object') {
+      throw new Error(`Component "${component.name}" propsSchema must have type 'object'`);
+    }
+
+    if (schema.properties && typeof schema.properties !== 'object') {
+      throw new Error(`Component "${component.name}" propsSchema.properties must be an object`);
+    }
+
+    if (schema.required && !Array.isArray(schema.required)) {
+      throw new Error(`Component "${component.name}" propsSchema.required must be an array`);
+    }
+
+    // Validate property definitions
+    if (schema.properties) {
+      for (const [propName, propDef] of Object.entries(schema.properties)) {
+        if (typeof propDef !== 'object' || !propDef) {
+          throw new Error(`Component "${component.name}" prop "${propName}" must have a valid definition`);
+        }
+        
+        const prop = propDef as any;
+        if (!prop.type) {
+          throw new Error(`Component "${component.name}" prop "${propName}" must have a type`);
+        }
+
+        // Validate allowed types
+        const allowedTypes = ['string', 'number', 'boolean', 'object', 'array'];
+        if (!allowedTypes.includes(prop.type)) {
+          throw new Error(`Component "${component.name}" prop "${propName}" has invalid type "${prop.type}"`);
+        }
       }
-      if (typeof component.securityPolicy.sandboxed !== 'boolean') {
-        throw new Error(`Component "${component.name}" securityPolicy.sandboxed must be boolean`);
+    }
+  }
+
+  /**
+   * Validate security policy
+   */
+  private validateSecurityPolicy(component: ComponentDefinition): void {
+    if (!component.securityPolicy) {
+      // Set default security policy
+      component.securityPolicy = {
+        allowEval: false,
+        sandboxed: true,
+        maxBundleSize: '200KB'
+      };
+      return;
+    }
+
+    const policy = component.securityPolicy;
+    
+    if (policy.allowEval !== undefined && typeof policy.allowEval !== 'boolean') {
+      throw new Error(`Component "${component.name}" securityPolicy.allowEval must be boolean`);
+    }
+    
+    if (policy.sandboxed !== undefined && typeof policy.sandboxed !== 'boolean') {
+      throw new Error(`Component "${component.name}" securityPolicy.sandboxed must be boolean`);
+    }
+
+    if (policy.maxBundleSize !== undefined && typeof policy.maxBundleSize !== 'string') {
+      throw new Error(`Component "${component.name}" securityPolicy.maxBundleSize must be a string`);
+    }
+
+    // Validate CSP directives if present
+    if (policy.csp) {
+      this.validateCSPDirectives(component, policy.csp);
+    }
+  }
+
+  /**
+   * Validate CSP directives
+   */
+  private validateCSPDirectives(component: ComponentDefinition, csp: Record<string, any>): void {
+    const validDirectives = [
+      'script-src', 'style-src', 'img-src', 'connect-src', 'font-src',
+      'object-src', 'media-src', 'frame-src', 'worker-src', 'child-src'
+    ];
+
+    for (const [directive, value] of Object.entries(csp)) {
+      if (!validDirectives.includes(directive)) {
+        throw new Error(`Component "${component.name}" has invalid CSP directive "${directive}"`);
+      }
+
+      if (!Array.isArray(value)) {
+        throw new Error(`Component "${component.name}" CSP directive "${directive}" must be an array`);
+      }
+
+      // Validate CSP values
+      for (const source of value) {
+        if (typeof source !== 'string') {
+          throw new Error(`Component "${component.name}" CSP directive "${directive}" contains invalid source`);
+        }
+
+        // Check for dangerous CSP values
+        if (source === "'unsafe-eval'" && directive === 'script-src') {
+          throw new Error(`Component "${component.name}" uses dangerous CSP directive 'unsafe-eval'`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Validate performance budgets
+   */
+  private validatePerformanceBudgets(component: ComponentDefinition): void {
+    if (!component.performance) {
+      return;
+    }
+
+    const perf = component.performance;
+    
+    if (perf.bundleSizeGzipped !== undefined && typeof perf.bundleSizeGzipped !== 'string') {
+      throw new Error(`Component "${component.name}" performance.bundleSizeGzipped must be a string`);
+    }
+
+    if (perf.tti !== undefined && typeof perf.tti !== 'string') {
+      throw new Error(`Component "${component.name}" performance.tti must be a string`);
+    }
+
+    // Parse and validate bundle size
+    if (perf.bundleSizeGzipped) {
+      const sizeMatch = perf.bundleSizeGzipped.match(/^(\d+(?:\.\d+)?)(KB|MB)$/);
+      if (!sizeMatch || sizeMatch.length < 3) {
+        throw new Error(`Component "${component.name}" has invalid bundleSizeGzipped format`);
+      }
+
+      const size = parseFloat(sizeMatch[1]!);
+      const unit = sizeMatch[2]!;
+      const sizeInKB = unit === 'MB' ? size * 1024 : size;
+
+      // Default budget: 200KB
+      const budgetKB = 200;
+      if (sizeInKB > budgetKB) {
+        console.warn(`⚠️  Component "${component.name}" bundle size ${perf.bundleSizeGzipped} exceeds recommended budget of ${budgetKB}KB`);
+      }
+    }
+
+    // Parse and validate TTI
+    if (perf.tti) {
+      const ttiMatch = perf.tti.match(/^(\d+(?:\.\d+)?)(ms|s)$/);
+      if (!ttiMatch || ttiMatch.length < 3) {
+        throw new Error(`Component "${component.name}" has invalid tti format`);
+      }
+
+      const time = parseFloat(ttiMatch[1]!);
+      const unit = ttiMatch[2]!;
+      const timeInMs = unit === 's' ? time * 1000 : time;
+
+      // Default budget: 1500ms
+      const budgetMs = 1500;
+      if (timeInMs > budgetMs) {
+        console.warn(`⚠️  Component "${component.name}" TTI ${perf.tti} exceeds recommended budget of ${budgetMs}ms`);
       }
     }
   }

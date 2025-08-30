@@ -195,7 +195,13 @@ export function createDevServer(config: IXPServerConfig = {}): IXPServerInstance
       ...config.logging
     },
     cors: {
-      origins: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+      origins: [
+        'http://localhost:3000', 
+        'http://localhost:5173', 
+        'http://localhost:5174',
+        'http://localhost:8080',
+        'http://localhost:4000'
+      ],
       credentials: true,
       ...config.cors
     },
@@ -203,18 +209,83 @@ export function createDevServer(config: IXPServerConfig = {}): IXPServerInstance
       enabled: true,
       endpoint: '/metrics',
       ...config.metrics
+    },
+    // Development-specific security settings
+    security: {
+      helmet: false, // Disable helmet in dev for easier debugging
+      csp: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Allow eval for dev tools
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          connectSrc: ["'self'", 'ws:', 'wss:'] // Allow WebSocket connections for hot reload
+        }
+      },
+      ...config.security
     }
   };
   
   const server = createIXPServer(devConfig);
   
-  // Enable file watching for development
+  // Enable file watching for development with enhanced logging
   if (typeof devConfig.intents === 'string') {
     server.intentRegistry.enableFileWatching();
+    console.log(`👀 Watching intents file: ${devConfig.intents}`);
   }
   if (typeof devConfig.components === 'string') {
     server.componentRegistry.enableFileWatching();
+    console.log(`👀 Watching components file: ${devConfig.components}`);
   }
+  
+  // Add development-specific middleware for better debugging
+  server.addMiddleware({
+    name: 'dev-request-logger',
+    handler: (req, res, next) => {
+      const startTime = Date.now();
+      console.log(`🔍 ${req.method} ${req.path} - ${new Date().toISOString()}`);
+      
+      res.on('finish', () => {
+        const duration = Date.now() - startTime;
+        const statusColor = res.statusCode >= 400 ? '🔴' : res.statusCode >= 300 ? '🟡' : '🟢';
+        console.log(`${statusColor} ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+      });
+      
+      next();
+    },
+    priority: 1
+  });
+  
+  // Add hot reload endpoint for development
+  server.app.get('/dev/reload', (req, res) => {
+    res.json({ 
+      message: 'Hot reload triggered', 
+      timestamp: new Date().toISOString(),
+      intents: server.intentRegistry.getAll().length,
+      components: server.componentRegistry.getAll().length
+    });
+  });
+  
+  // Add development info endpoint
+  server.app.get('/dev/info', (req, res) => {
+    res.json({
+      mode: 'development',
+      config: {
+        port: devConfig.port,
+        intents: typeof devConfig.intents === 'string' ? devConfig.intents : 'inline',
+        components: typeof devConfig.components === 'string' ? devConfig.components : 'inline'
+      },
+      stats: {
+        intents: server.intentRegistry.getStats(),
+        components: server.componentRegistry.getStats()
+      },
+      fileWatching: {
+        intents: typeof devConfig.intents === 'string',
+        components: typeof devConfig.components === 'string'
+      }
+    });
+  });
+  
+  console.log('🛠️  Development server configured with hot reload support');
   
   return server;
 }
@@ -377,5 +448,5 @@ export type {
 } from './types/index';
 
 // Package information
-export const version = '1.0.2';
+export const version = '1.1.1';
 export const name = 'ixp-server';
