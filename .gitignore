@@ -1,6 +1,8 @@
 .github
 .husky
 /node_modules/
+/*/node_modules/
+/*/**/node_modules/
 /dist/
 npm-debug.log*
 yarn-debug.log*

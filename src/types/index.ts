@@ -165,6 +165,7 @@ export interface IXPMiddleware {
 export interface DataProvider {
   getCrawlerContent?: (options: CrawlerContentOptions) => Promise<CrawlerContentResponse>;
   resolveIntentData?: (intent: IntentRequest, context?: any) => Promise<Record<string, any>>;
+  resolveComponentData?: (componentName: string, queryParams: Record<string, any>, context?: any) => Promise<Record<string, any>>;
 }
 
 export interface CrawlerContentOptions {

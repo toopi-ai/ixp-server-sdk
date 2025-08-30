@@ -248,6 +248,60 @@ export class IXPServer implements IXPServerInstance {
       }
     });
 
+    // POST /ixp/render-ui - Intent Resolution with HTML Output
+    this.app.post('/render-ui', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { intent, options } = req.body;
+        
+        if (!intent || !intent.name) {
+          throw ErrorFactory.invalidRequest('Missing required parameter \'intent.name\'');
+        }
+
+        // Validate origin if component has restrictions
+        const origin = req.get('Origin');
+        if (origin) {
+          const intentDef = this.intentRegistry.get(intent.name);
+          if (intentDef) {
+            const componentDef = this.componentRegistry.get(intentDef.component);
+            if (componentDef && !this.componentRegistry.isOriginAllowed(componentDef.name, origin)) {
+              throw ErrorFactory.originNotAllowed(origin, componentDef.name);
+            }
+          }
+        }
+
+        const result = await this.intentResolver.resolveIntent(intent, options);
+        
+        // Render the component as HTML
+        const renderOptions = {
+          componentName: result.component.name,
+          props: result.record.props,
+          intentId: intent.name,
+          theme: options?.theme || this.config.theme || {},
+          apiBase: options?.apiBase || '/ixp',
+          ssr: options?.ssr !== false,
+          hydrate: options?.hydrate !== false,
+          timeout: options?.timeout || 5000
+        };
+
+        const renderResult = await this.componentRenderer.render(renderOptions);
+        
+        const html = this.componentRenderer.generatePage(renderResult, {
+          title: `${intent.name} - ${result.component.name}`,
+          meta: {
+            'intent-name': intent.name,
+            'component-name': result.component.name,
+            'render-time': renderResult.performance.renderTime.toString()
+          }
+        });
+        
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        res.send(html);
+      } catch (error) {
+        next(error);
+      }
+    });
+
     // POST /ixp/components/render - Direct Component Rendering
     this.app.post('/components/render', async (req: Request, res: Response, next: NextFunction) => {
       try {
@@ -438,6 +492,74 @@ export class IXPServer implements IXPServerInstance {
         res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes cache
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.json(config);
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // GET /view/:componentName - Component View for iframe embedding
+    this.app.get('/view/:componentName', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { componentName } = req.params;
+        
+        if (!componentName) {
+          throw ErrorFactory.invalidRequest('Component name is required');
+        }
+        
+        const component = this.componentRegistry.get(componentName);
+        
+        if (!component) {
+          throw ErrorFactory.componentNotFound(componentName);
+        }
+
+        // Validate origin if component has restrictions
+        const origin = req.get('Origin');
+        if (origin && !this.componentRegistry.isOriginAllowed(componentName, origin)) {
+          throw ErrorFactory.originNotAllowed(origin, componentName);
+        }
+
+        // Extract props from query parameters
+        let props = { ...req.query };
+        
+        // Use data provider to resolve component data if available
+        if (this.config.dataProvider?.resolveComponentData) {
+          try {
+            const resolvedData = await this.config.dataProvider.resolveComponentData(
+              componentName,
+              req.query,
+              { req, res }
+            );
+            props = { ...props, ...resolvedData };
+          } catch (error) {
+            this.logger.warn(`Failed to resolve component data for ${componentName}:`, error);
+            // Continue with query params only if data provider fails
+          }
+        }
+        
+        const renderOptions = {
+          componentName,
+          props,
+          theme: this.config.theme || {},
+          apiBase: '/ixp',
+          ssr: true,
+          hydrate: true,
+          timeout: 5000
+        };
+
+        const renderResult = await this.componentRenderer.render(renderOptions);
+        
+        const html = this.componentRenderer.generatePage(renderResult, {
+          title: `${componentName} Component`,
+          meta: {
+            'component-name': componentName,
+            'render-time': renderResult.performance.renderTime.toString(),
+            'viewport': 'width=device-width, initial-scale=1.0'
+          }
+        });
+        
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        res.send(html);
       } catch (error) {
         next(error);
       }
