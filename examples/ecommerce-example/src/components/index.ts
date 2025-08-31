@@ -21,3 +21,11 @@ export interface HeaderProps {
   onCartClick?: () => void;
   onSearch?: (query: string) => void;
 }
+
+export { default as CategoryFilter } from './CategoryFilter';
+export { default as CategoryGrid } from './CategoryGrid';
+export { default as ProductCard } from './ProductCard';
+export { default as ProductList } from './ProductList';
+export { default as ShoppingCart } from './ShoppingCart';
+export { default as ThemeProvider, useTheme } from './ThemeProvider';
+export { default as ThemeToggle } from './ThemeToggle';

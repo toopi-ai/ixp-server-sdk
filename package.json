@@ -83,6 +83,7 @@
     "chokidar": "^3.5.3",
     "commander": "^11.1.0",
     "cors": "^2.8.5",
+    "esbuild": "^0.25.9",
     "express": "^4.18.0",
     "fs-extra": "^11.2.0",
     "helmet": "^7.1.0",

@@ -24,8 +24,19 @@ const ProductCard: React.FC<ProductCardProps> = ({
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : 0;
 
+  // Use CSS custom properties for theming
+  const cardStyle = {
+    backgroundColor: 'var(--ixp-color-background-paper, #ffffff)',
+    color: 'var(--ixp-color-text-primary, #333333)',
+    border: '1px solid var(--ixp-color-border-default, #e9ecef)',
+    borderRadius: 'var(--ixp-border-radius, 12px)',
+    padding: 'var(--ixp-spacing-md, 16px)',
+    boxShadow: 'var(--ixp-shadow-card, 0 2px 8px rgba(0, 0, 0, 0.1))',
+    transition: 'all 0.2s ease'
+  };
+
   return (
-    <div className="product-card">
+    <div className="product-card" style={cardStyle}>
       <div className="product-image-container">
         <img 
           src={product.image} 

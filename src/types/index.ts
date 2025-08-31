@@ -328,3 +328,145 @@ export interface TemplateFile {
   content: string;
   executable?: boolean;
 }
+
+// Theme Configuration Types
+export interface IXPTheme {
+  colors: ThemeColors;
+  typography: ThemeTypography;
+  spacing: ThemeSpacing;
+  breakpoints: ThemeBreakpoints;
+  components: ThemeComponents;
+  mode: 'light' | 'dark';
+  name: string;
+  version: string;
+}
+
+export interface ThemeColors {
+  primary: ColorPalette;
+  secondary: ColorPalette;
+  background: {
+    default: string;
+    paper: string;
+    elevated: string;
+  };
+  text: {
+    primary: string;
+    secondary: string;
+    disabled: string;
+  };
+  border: {
+    default: string;
+    light: string;
+    focus: string;
+  };
+  status: {
+    success: string;
+    warning: string;
+    error: string;
+    info: string;
+  };
+}
+
+export interface ColorPalette {
+  50: string;
+  100: string;
+  200: string;
+  300: string;
+  400: string;
+  500: string;
+  600: string;
+  700: string;
+  800: string;
+  900: string;
+}
+
+export interface ThemeTypography {
+  fontFamily: {
+    sans: string[];
+    mono: string[];
+  };
+  fontSize: {
+    xs: string;
+    sm: string;
+    base: string;
+    lg: string;
+    xl: string;
+    '2xl': string;
+    '3xl': string;
+    '4xl': string;
+  };
+  fontWeight: {
+    normal: number;
+    medium: number;
+    semibold: number;
+    bold: number;
+  };
+  lineHeight: {
+    tight: number;
+    normal: number;
+    relaxed: number;
+  };
+}
+
+export interface ThemeSpacing {
+  0: string;
+  1: string;
+  2: string;
+  3: string;
+  4: string;
+  5: string;
+  6: string;
+  8: string;
+  10: string;
+  12: string;
+  16: string;
+  20: string;
+  24: string;
+  32: string;
+}
+
+export interface ThemeBreakpoints {
+  sm: string;
+  md: string;
+  lg: string;
+  xl: string;
+  '2xl': string;
+}
+
+export interface ThemeComponents {
+  button: ComponentTheme;
+  card: ComponentTheme;
+  input: ComponentTheme;
+  modal: ComponentTheme;
+  [key: string]: ComponentTheme;
+}
+
+export interface ComponentTheme {
+  base: Record<string, any>;
+  variants: Record<string, Record<string, any>>;
+  sizes: Record<string, Record<string, any>>;
+  states: Record<string, Record<string, any>>;
+}
+
+// Theme Context and Hook Types
+export interface ThemeContextValue {
+  theme: IXPTheme;
+  setTheme: (theme: IXPTheme | string) => void;
+  toggleMode: () => void;
+  availableThemes: IXPTheme[];
+  currentMode: 'light' | 'dark';
+}
+
+export interface UseThemeReturn {
+  theme: IXPTheme;
+  colors: ThemeColors;
+  typography: ThemeTypography;
+  spacing: ThemeSpacing;
+  breakpoints: ThemeBreakpoints;
+  components: ThemeComponents;
+  mode: 'light' | 'dark';
+  setTheme: (theme: IXPTheme | string) => void;
+  toggleMode: () => void;
+  css: (styles: Record<string, any>) => string;
+  className: (styles: Record<string, any>) => string;
+}

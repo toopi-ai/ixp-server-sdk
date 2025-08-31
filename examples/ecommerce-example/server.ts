@@ -363,10 +363,290 @@ const ecommerceDataProvider = {
 };
 
 // Create Express app with IXP server mounted
+// Define themes for the ecommerce application
+const ecommerceThemes = [
+  {
+    name: 'default',
+    mode: 'light' as const,
+    colors: {
+      primary: {
+        main: '#007bff',
+        light: '#66b3ff',
+        dark: '#0056b3',
+        contrast: '#ffffff'
+      },
+      secondary: {
+        main: '#6c757d',
+        light: '#adb5bd',
+        dark: '#495057',
+        contrast: '#ffffff'
+      },
+      background: {
+        default: '#f8f9fa',
+        paper: '#ffffff',
+        elevated: '#ffffff'
+      },
+      text: {
+        primary: '#333333',
+        secondary: '#6c757d',
+        disabled: '#adb5bd'
+      },
+      border: {
+        default: '#e9ecef',
+        light: '#f8f9fa',
+        focus: '#007bff'
+      },
+      success: '#28a745',
+      warning: '#ffc107',
+      error: '#dc3545',
+      info: '#17a2b8'
+    },
+    typography: {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        md: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '2rem'
+      },
+      fontWeight: {
+        light: 300,
+        normal: 400,
+        medium: 500,
+        semibold: 600,
+        bold: 700
+      }
+    },
+    spacing: {
+      xs: '0.25rem',
+      sm: '0.5rem',
+      md: '1rem',
+      lg: '1.5rem',
+      xl: '2rem',
+      '2xl': '3rem'
+    },
+    breakpoints: {
+      xs: '0px',
+      sm: '576px',
+      md: '768px',
+      lg: '992px',
+      xl: '1200px'
+    },
+    components: {
+      ProductCard: {
+        base: {
+          backgroundColor: '#ffffff',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          transition: 'all 0.2s ease'
+        },
+        variants: {
+          featured: {
+            border: '2px solid #007bff',
+            boxShadow: '0 4px 12px rgba(0, 123, 255, 0.15)'
+          },
+          sale: {
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffc107'
+          }
+        },
+        sizes: {
+          small: {
+            padding: '12px',
+            fontSize: '0.875rem'
+          },
+          large: {
+            padding: '24px',
+            fontSize: '1.125rem'
+          }
+        }
+      },
+      Button: {
+        base: {
+          padding: '12px 20px',
+          borderRadius: '8px',
+          fontWeight: '500',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          border: 'none'
+        },
+        variants: {
+          primary: {
+            backgroundColor: '#007bff',
+            color: '#ffffff'
+          },
+          secondary: {
+            backgroundColor: '#6c757d',
+            color: '#ffffff'
+          },
+          outline: {
+            backgroundColor: 'transparent',
+            border: '2px solid #007bff',
+            color: '#007bff'
+          }
+        },
+        sizes: {
+          small: {
+            padding: '8px 16px',
+            fontSize: '0.875rem'
+          },
+          large: {
+            padding: '16px 24px',
+            fontSize: '1.125rem'
+          }
+        }
+      }
+    }
+  },
+  {
+    name: 'dark',
+    mode: 'dark' as const,
+    colors: {
+      primary: {
+        main: '#3b82f6',
+        light: '#60a5fa',
+        dark: '#1d4ed8',
+        contrast: '#ffffff'
+      },
+      secondary: {
+        main: '#64748b',
+        light: '#94a3b8',
+        dark: '#475569',
+        contrast: '#ffffff'
+      },
+      background: {
+        default: '#0f172a',
+        paper: '#1e293b',
+        elevated: '#334155'
+      },
+      text: {
+        primary: '#f8fafc',
+        secondary: '#cbd5e1',
+        disabled: '#64748b'
+      },
+      border: {
+        default: '#334155',
+        light: '#475569',
+        focus: '#3b82f6'
+      },
+      success: '#10b981',
+      warning: '#f59e0b',
+      error: '#ef4444',
+      info: '#06b6d4'
+    },
+    typography: {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        md: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '2rem'
+      },
+      fontWeight: {
+        light: 300,
+        normal: 400,
+        medium: 500,
+        semibold: 600,
+        bold: 700
+      }
+    },
+    spacing: {
+      xs: '0.25rem',
+      sm: '0.5rem',
+      md: '1rem',
+      lg: '1.5rem',
+      xl: '2rem',
+      '2xl': '3rem'
+    },
+    breakpoints: {
+      xs: '0px',
+      sm: '576px',
+      md: '768px',
+      lg: '992px',
+      xl: '1200px'
+    },
+    components: {
+      ProductCard: {
+        base: {
+          backgroundColor: '#1e293b',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          padding: '16px',
+          transition: 'all 0.2s ease',
+          border: '1px solid #334155'
+        },
+        variants: {
+          featured: {
+            border: '2px solid #3b82f6',
+            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
+          },
+          sale: {
+            backgroundColor: '#422006',
+            border: '1px solid #f59e0b'
+          }
+        },
+        sizes: {
+          small: {
+            padding: '12px',
+            fontSize: '0.875rem'
+          },
+          large: {
+            padding: '24px',
+            fontSize: '1.125rem'
+          }
+        }
+      },
+      Button: {
+        base: {
+          padding: '12px 20px',
+          borderRadius: '8px',
+          fontWeight: '500',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          border: 'none'
+        },
+        variants: {
+          primary: {
+            backgroundColor: '#3b82f6',
+            color: '#ffffff'
+          },
+          secondary: {
+            backgroundColor: '#64748b',
+            color: '#ffffff'
+          },
+          outline: {
+            backgroundColor: 'transparent',
+            border: '2px solid #3b82f6',
+            color: '#3b82f6'
+          }
+        },
+        sizes: {
+          small: {
+            padding: '8px 16px',
+            fontSize: '0.875rem'
+          },
+          large: {
+            padding: '16px 24px',
+            fontSize: '1.125rem'
+          }
+        }
+      }
+    }
+  }
+];
+
 const app = createIXPApp({
   intents,
   components,
   dataProvider: ecommerceDataProvider,
+  theme: ecommerceThemes,
   cors: {
     origins: ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:5173'],
     credentials: true
@@ -918,6 +1198,9 @@ function generateComponentHTML(componentName: string, data: any): string {
 }
 
 // Demo page
+// Serve static files
+app.use('/static', express.static(__dirname + '/src/styles'));
+
 app.get('/', (_req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -999,6 +1282,30 @@ app.get('/', (_req, res) => {
             .example-link:hover {
                 text-decoration: underline;
             }
+            .demo-section {
+                background: #e7f3ff;
+                padding: 20px;
+                border-radius: 6px;
+                border-left: 4px solid #007bff;
+                margin-bottom: 20px;
+            }
+            .demo-section h3 {
+                margin: 0 0 15px 0;
+                color: #0056b3;
+            }
+            .demo-link {
+                display: inline-block;
+                background: #007bff;
+                color: white;
+                padding: 12px 24px;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 500;
+                margin-top: 10px;
+            }
+            .demo-link:hover {
+                background: #0056b3;
+            }
         </style>
     </head>
     <body>
@@ -1007,6 +1314,12 @@ app.get('/', (_req, res) => {
                 <h1>🛒 E-commerce IXP Server</h1>
                 <p>A comprehensive e-commerce example built with IXP Server SDK</p>
                 <p><strong>Server running on port 3001</strong></p>
+            </div>
+            
+            <div class="demo-section">
+                <h3>🎨 Theme System Demo</h3>
+                <p>Experience the IXP Server SDK's dynamic theme system with light/dark mode switching and component-specific styling.</p>
+                <a href="/demo" class="demo-link">View Theme Demo</a>
             </div>
             
             <div class="endpoints">
@@ -1053,6 +1366,11 @@ app.get('/', (_req, res) => {
     </body>
     </html>
   `);
+});
+
+// Serve the theme demo page
+app.get('/demo', (_req, res) => {
+  res.sendFile(__dirname + '/demo.html');
 });
 
 // Start server

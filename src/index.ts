@@ -398,6 +398,14 @@ export {
   MetricsService
 } from './utils/metrics';
 
+export {
+  useTheme,
+  setAvailableThemes,
+  getAvailableThemes,
+  createDarkTheme,
+  applyTheme
+} from './runtime/ixp-sdk';
+
 // Re-export plugins
 export {
   createSwaggerPlugin,
@@ -444,7 +452,17 @@ export type {
   CLICommand,
   CLIOption,
   ProjectTemplate,
-  TemplateFile
+  TemplateFile,
+  IXPTheme,
+  ThemeColors,
+  ColorPalette,
+  ThemeTypography,
+  ThemeSpacing,
+  ThemeBreakpoints,
+  ThemeComponents,
+  ComponentTheme,
+  ThemeContextValue,
+  UseThemeReturn
 } from './types/index';
 
 // Package information
