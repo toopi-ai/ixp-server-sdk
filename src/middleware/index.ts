@@ -6,6 +6,8 @@ import { Request, Response, NextFunction } from 'express';
 import type { IXPMiddleware } from '../types/index';
 import { ErrorFactory } from '../utils/errors';
 
+export { createRenderMiddleware } from './renderMiddleware';
+
 /**
  * Rate limiting middleware factory
  */

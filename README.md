@@ -8,6 +8,8 @@
 
 A comprehensive SDK for building Intent Exchange Protocol (IXP) servers with ease. This SDK provides everything you need to create IXP-compliant servers that can handle intent-driven component rendering, including built-in support for crawler content, health monitoring, metrics collection, and extensive middleware capabilities.
 
+**New Feature: Automated Rendering System** - Now with support for React, Vue, and vanilla JavaScript components!
+
 **Latest Version: 1.1.1** - Now available on npm! 🎉
 
 ## 🚀 Quick Start
@@ -48,7 +50,41 @@ ixp-server create my-ixp-server
 cd my-ixp-server
 npm install
 npm run dev
+```
 
+### Automated Rendering System
+
+The SDK now includes an automated rendering system that supports React, Vue, and vanilla JavaScript components:
+
+```typescript
+import { createServer } from 'ixp-server';
+import { createRenderMiddleware } from 'ixp-server-sdk/middleware';
+import { createReactRenderer } from 'ixp-server-sdk/renderers';
+
+// Create IXP Server
+const server = createServer();
+
+// Setup React renderer
+const reactRenderer = createReactRenderer();
+
+// Add rendering middleware
+server.use(
+  createRenderMiddleware({
+    renderers: {
+      react: reactRenderer,
+    },
+    defaultRenderer: 'react',
+  })
+);
+
+server.start();
+```
+
+Or use the CLI to set up rendering:
+
+```bash
+ixp-server setup:render --framework react
+```
 # Or try our examples
 git clone https://github.com/your-org/ixp-server-sdk.git
 cd ixp-server-sdk
@@ -84,6 +120,8 @@ npx tsx examples/minimal-server.ts
 - **Security**: Built-in security headers, CORS, rate limiting, and origin validation
 - **Intent Resolution Pipeline**: Advanced intent resolution with parameter validation and component mapping
 - **Data Provider Interface**: Flexible data integration with custom resolver functions
+- **Client-side Rendering**: Optimized for client-side rendering with hydration support
+- **Enhanced JSON Responses**: New `/render-json` endpoint with complete rendering data
 - **Production Ready**: Published on npm with 57 passing tests and 95%+ coverage
 - **Four Example Servers**: Minimal, React, Vue, and Advanced Features examples included
 

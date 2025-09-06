@@ -11,7 +11,12 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
-// __dirname is available in CommonJS
+import { dirname } from 'path';
+import { version } from '../../package.json';
+
+// Use current working directory for CLI operations
+const cliWorkingDir = process.cwd();
+
 
 const program = new Command();
 
@@ -19,7 +24,7 @@ const program = new Command();
 program
   .name('ixp-server')
   .description('CLI tool for creating and managing IXP servers')
-  .version('1.1.1')
+  .version(version || '1.1.1')
   .option('-v, --verbose', 'Enable verbose output')
   .option('--no-color', 'Disable colored output');
 
@@ -145,6 +150,25 @@ program
       await runTests(options);
     } catch (error) {
       console.error(chalk.red('Tests failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Setup automatic rendering for components
+ */
+program
+  .command('setup:render')
+  .description('Setup automatic rendering for components based on framework')
+  .option('-f, --framework <framework>', 'Component framework (react, vue, vanilla)', 'react')
+  .option('-p, --port <port>', 'Port for the server', '3000')
+  .option('-c, --config <path>', 'Path to config directory', './config')
+  .option('--no-routes', 'Skip route generation')
+  .action(async (options) => {
+    try {
+      await setupRendering(options);
+    } catch (error: any) {
+      console.error(chalk.red(`Error setting up rendering: ${error.message}`));
       process.exit(1);
     }
   });
@@ -331,7 +355,16 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
   
   // Create directory structure
   await fs.ensureDir(path.join(projectPath, 'src'));
+  await fs.ensureDir(path.join(projectPath, 'src', 'components'));
+  await fs.ensureDir(path.join(projectPath, 'src', 'templates'));
   await fs.ensureDir(path.join(projectPath, 'config'));
+  await fs.ensureDir(path.join(projectPath, 'public'));
+  
+  // Copy error page templates
+  const templatesSourcePath = path.join(__dirname, '../src/templates');
+  if (await fs.pathExists(templatesSourcePath)) {
+    await fs.copy(templatesSourcePath, path.join(projectPath, 'src', 'templates'));
+  }
   
   // Generate package.json
   const packageJson = {
@@ -341,20 +374,36 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
     main: `src/index.${ext}`,
     scripts: {
       dev: isTypeScript ? 'tsx watch src/index.ts' : 'node src/index.js',
-      build: isTypeScript ? 'tsc' : 'echo "No build step needed for JavaScript"',
+      build: 'npm run build:server && npm run build:components && npm run copy:templates && npm run copy:public',
+      'build:server': 'tsc',
+      'copy:templates': 'cp -r src/templates dist/ 2>/dev/null || true',
+      'copy:public': 'cp -r public dist/ 2>/dev/null || true',
       start: isTypeScript ? 'node dist/index.js' : 'node src/index.js',
+      'build:components': 'vite build --outDir public',
+      'dev:components': 'vite --outDir public',
       validate: 'ixp-server validate',
       'generate:intent': 'ixp-server generate:intent',
       'generate:component': 'ixp-server generate:component'
     },
     dependencies: {
-      'ixp-server': '^1.1.1'
+      'ixp-server': '^1.1.1',
+      'express': '^4.18.2',
+      'react': '^18.2.0',
+      'react-dom': '^18.2.0'
     },
     devDependencies: isTypeScript ? {
       'typescript': '^5.3.3',
       'tsx': '^4.6.2',
-      '@types/node': '^20.10.5'
-    } : {}
+      '@types/node': '^20.10.5',
+      '@types/express': '^4.17.21',
+      '@types/react': '^18.2.45',
+      '@types/react-dom': '^18.2.18',
+      'vite': '^4.4.9',
+      '@vitejs/plugin-react': '^4.2.0'
+    } : {
+      'vite': '^4.4.9',
+      '@vitejs/plugin-react': '^4.2.0'
+    }
   };
   
   await fs.writeJSON(path.join(projectPath, 'package.json'), packageJson, { spaces: 2 });
@@ -372,7 +421,8 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
         outDir: './dist',
         rootDir: './src',
         declaration: true,
-        sourceMap: true
+        sourceMap: true,
+        jsx: 'react-jsx'
       },
       include: ['src/**/*'],
       exclude: ['node_modules', 'dist']
@@ -394,6 +444,9 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
     await generateEmptyComponents(path.join(projectPath, 'config/components.json'));
   }
   
+  // Note: Vite config and components index generation would be implemented here
+  // For now, these are placeholder calls that have been removed to fix compilation
+  
   // Generate README
   const readme = generateReadme(config);
   await fs.writeFile(path.join(projectPath, 'README.md'), readme);
@@ -408,17 +461,17 @@ async function generateProjectFiles(projectPath: string, config: any): Promise<v
  */
 function generateServerCode(config: any, isTypeScript: boolean): string {
   const imports = isTypeScript 
-    ? 'import { createIXPServer, createSwaggerPlugin, createHealthPlugin, createMetricsPlugin, createRateLimitMiddleware, createLoggingMiddleware } from \'ixp-server\';'
-    : 'const { createIXPServer, createSwaggerPlugin, createHealthPlugin, createMetricsPlugin, createRateLimitMiddleware, createLoggingMiddleware } = require(\'ixp-server\');';
+    ? 'import { createIXPServer } from \'ixp-server\';\nimport express from \'express\';\nimport path from \'path\';'
+    : 'const { createIXPServer } = require(\'ixp-server\');\nconst express = require(\'express\');\nconst path = require(\'path\');';
   
   const plugins = config.features.map((feature: string) => {
     switch (feature) {
       case 'swagger':
-        return `  server.addPlugin(createSwaggerPlugin({ title: '${path.basename(process.cwd())} API' }));`;
+        return `  // Add swagger documentation at /ixp/api-docs\n  server.addPlugin('swagger', { title: '${path.basename(process.cwd())} API' });`;
       case 'health':
-        return '  server.addPlugin(createHealthPlugin({}));';
+        return '  // Add health endpoint at /ixp/health\n  server.addPlugin(\'health\');';
       case 'metrics':
-        return '  server.addPlugin(createMetricsPlugin({}));';
+        return '  // Add metrics endpoint at /ixp/metrics\n  server.addPlugin(\'metrics\');';
       default:
         return '';
     }
@@ -427,9 +480,9 @@ function generateServerCode(config: any, isTypeScript: boolean): string {
   const middleware = config.features.map((feature: string) => {
     switch (feature) {
       case 'rateLimit':
-        return '  server.addMiddleware(createRateLimitMiddleware({ max: 100, windowMs: 15 * 60 * 1000 }));';
+        return '  // Add rate limiting\n  server.use(server.rateLimit({ max: 100, windowMs: 15 * 60 * 1000 }));';
       case 'logging':
-        return '  server.addMiddleware(createLoggingMiddleware({ logLevel: \'info\' }));';
+        return '  // Add request logging\n  server.use(server.logging({ level: \'info\' }));';
       default:
         return '';
     }
@@ -446,15 +499,27 @@ async function main() {
       origins: ['http://localhost:3000', 'http://localhost:5173']
     },
     logging: {
-      level: 'info'
+      level: process.env.NODE_ENV === 'production' ? 'production' : process.env.NODE_ENV === 'development' ? 'debug' : 'info'
+    },
+    static: {
+      enabled: true,
+      publicPath: path.resolve('./public'),
+      urlPath: '/public'
     }
   });
 
 ${plugins}
 ${middleware}
 
+  // Set up Express app
+  const app = server.getExpressApp();
+
+  // Serve static files from the components directory
+  app.use(express.static(path.join(__dirname, 'components')));
+
   await server.listen();
   console.log('🚀 IXP Server is running!');
+  console.log('🌐 Server available at: http://localhost:${config.port}');
 }
 
 main().catch(console.error);
@@ -497,7 +562,7 @@ async function generateExampleComponents(filePath: string): Promise<void> {
     components: {
       WelcomeMessage: {
         framework: 'react',
-        remoteUrl: 'http://localhost:5173/WelcomeMessage.js',
+        remoteUrl: '/public/components.js',
         exportName: 'WelcomeMessage',
         propsSchema: {
           type: 'object',
@@ -516,7 +581,8 @@ async function generateExampleComponents(filePath: string): Promise<void> {
           allowEval: false,
           maxBundleSize: '50KB',
           sandboxed: true
-        }
+        },
+        crawlable: true
       }
     }
   };
@@ -594,7 +660,7 @@ Edit the configuration files in the \`config/\` directory:
 async function generateIntent(name: string, options: any): Promise<void> {
   console.log(chalk.blue(`Generating intent: ${name}`));
   
-  const config = options.yes ? {} : await inquirer.prompt([
+  const config = options.yes ? { crawlable: false } : await inquirer.prompt([
     {
       type: 'input',
       name: 'description',
@@ -606,6 +672,12 @@ async function generateIntent(name: string, options: any): Promise<void> {
       name: 'component',
       message: 'Component name:',
       default: options.component || name.charAt(0).toUpperCase() + name.slice(1)
+    },
+    {
+      type: 'confirm',
+      name: 'crawlable',
+      message: 'Should this intent be exposed to crawler?',
+      default: false
     }
   ]);
   
@@ -618,7 +690,7 @@ async function generateIntent(name: string, options: any): Promise<void> {
     },
     component: config.component || options.component || name.charAt(0).toUpperCase() + name.slice(1),
     version: '1.1.1',
-    crawlable: false
+    crawlable: config.crawlable || false
   };
   
   // Read existing intents file
@@ -644,7 +716,7 @@ async function generateIntent(name: string, options: any): Promise<void> {
 async function generateComponent(name: string, options: any): Promise<void> {
   console.log(chalk.blue(`Generating component: ${name}`));
   
-  const config = options.yes ? {} : await inquirer.prompt([
+  const config = options.yes ? { framework: 'react', url: '/public/components.js', crawlable: false } : await inquirer.prompt([
     {
       type: 'list',
       name: 'framework',
@@ -656,13 +728,22 @@ async function generateComponent(name: string, options: any): Promise<void> {
       type: 'input',
       name: 'url',
       message: 'Remote URL:',
-      default: options.url || `http://localhost:5173/${name}.js`
+      default: options.url || '/public/components.js'
+    },
+    {
+      type: 'confirm',
+      name: 'crawlable',
+      message: 'Should this component be exposed to crawler?',
+      default: false
     }
   ]);
   
+  const framework = config.framework || options.framework || 'react';
+  const remoteUrl = config.url || options.url || '/public/components.js';
+  
   const component = {
-    framework: config.framework || options.framework || 'react',
-    remoteUrl: config.url || options.url || `http://localhost:5173/${name}.js`,
+    framework,
+    remoteUrl,
     exportName: name,
     propsSchema: {
       type: 'object',
@@ -679,7 +760,8 @@ async function generateComponent(name: string, options: any): Promise<void> {
       allowEval: false,
       maxBundleSize: '100KB',
       sandboxed: true
-    }
+    },
+    crawlable: config.crawlable || false
   };
   
   // Read existing components file
@@ -696,7 +778,517 @@ async function generateComponent(name: string, options: any): Promise<void> {
   // Write back to file
   await fs.writeJSON(componentsPath, componentsData, { spaces: 2 });
   
+  // Create component directory if it doesn't exist
+  const componentsDir = path.join(process.cwd(), 'src', 'components');
+  await fs.ensureDir(componentsDir);
+  
+  // Create component file based on framework
+  const componentContent = generateComponentContent(name, framework);
+  const fileExtension = framework === 'react' ? 'tsx' : framework === 'vue' ? 'vue' : 'js';
+  await fs.writeFile(path.join(componentsDir, `${name}.${fileExtension}`), componentContent);
+  
+  // Update or create index file to export all components
+  await updateComponentIndex(componentsDir, name, framework);
+  
+  // Create or update Vite config if it doesn't exist
+  await createViteConfig(framework);
+  
   console.log(chalk.green(`✅ Component '${name}' generated successfully!`));
+  console.log(chalk.yellow('Next steps:'));
+  console.log(`  1. Update the props schema in ${options.output}`);
+  console.log(`  2. Customize your component in src/components/${name}.${fileExtension}`);
+  console.log(`  3. Run 'npm run dev' to start the development server`);
+}
+
+/**
+ * Generate component content based on framework
+ */
+function generateComponentContent(name: string, framework: string): string {
+  if (framework === 'react') {
+    return `import React from 'react';
+
+interface ${name}Props {
+  // Define your props here
+}
+
+const ${name}: React.FC<${name}Props> = (props) => {
+  return (
+    <div className="${name.toLowerCase()}-container">
+      <h2>${name}</h2>
+      <p>This is a new ${name} component.</p>
+    </div>
+  );
+};
+
+export default ${name};
+`;
+  } else if (framework === 'vue') {
+    return `<template>
+  <div class="${name.toLowerCase()}-container">
+    <h2>${name}</h2>
+    <p>This is a new ${name} component.</p>
+  </div>
+</template>
+
+<script>
+export default {
+  name: '${name}',
+  props: {
+    // Define your props here
+  },
+  data() {
+    return {
+      // Component state
+    };
+  },
+  methods: {
+    // Component methods
+  }
+};
+</script>
+
+<style scoped>
+.${name.toLowerCase()}-container {
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+</style>
+`;
+  } else {
+    // Vanilla JS
+    return `// ${name} Component
+
+class ${name} extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
+  connectedCallback() {
+    this.render();
+  }
+
+  render() {
+    this.shadowRoot.innerHTML = \`
+      <style>
+        .${name.toLowerCase()}-container {
+          padding: 1rem;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+      </style>
+      <div class="${name.toLowerCase()}-container">
+        <h2>${name}</h2>
+        <p>This is a new ${name} component.</p>
+      </div>
+    \`;
+  }
+}
+
+customElements.define('${name.toLowerCase()}-component', ${name});
+
+export default ${name};
+`;
+  }
+}
+
+/**
+ * Update component index file
+ */
+async function updateComponentIndex(componentsDir: string, name: string, framework: string) {
+  const indexPath = path.join(componentsDir, 'index.ts');
+  let indexContent = '';
+  
+  // Create or update the index file
+  if (await fs.pathExists(indexPath)) {
+    // Read existing content
+    indexContent = await fs.readFile(indexPath, 'utf8');
+    
+    // Check if the component is already exported
+    if (!indexContent.includes(`export { default as ${name} }`)) {
+      // Add the new export
+      indexContent += `\nexport { default as ${name} } from './${name}';
+`;
+    }
+  } else {
+    // Create a new index file with a header comment
+    indexContent = `// Export all components\nexport { default as ${name} } from './${name}';
+`;
+  }
+  
+  // Write the updated index file
+  await fs.writeFile(indexPath, indexContent);
+}
+
+/**
+ * Create Vite configuration file
+ */
+async function createViteConfig(framework: string) {
+  const viteConfigPath = path.join(process.cwd(), 'vite.config.ts');
+  
+  // Only create if it doesn't exist
+  if (!await fs.pathExists(viteConfigPath)) {
+    let viteConfig = '';
+    
+    if (framework === 'react') {
+      viteConfig = `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  },
+  build: {
+    outDir: 'dist/public',
+    lib: {
+      entry: resolve(__dirname, 'src/components/index.ts'),
+      name: 'Components',
+      formats: ['umd'],
+      fileName: () => 'components.js'
+    },
+    rollupOptions: {
+      external: ['react', 'react-dom'],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM'
+        }
+      }
+    }
+  },
+  server: {
+    port: 5173,
+    open: true
+  }
+});
+`;
+    } else if (framework === 'vue') {
+      viteConfig = `import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  },
+  build: {
+    outDir: 'dist/public',
+    lib: {
+      entry: resolve(__dirname, 'src/components/index.ts'),
+      name: 'Components',
+      formats: ['umd'],
+      fileName: () => 'components.js'
+    },
+    rollupOptions: {
+      external: ['vue'],
+      output: {
+        globals: {
+          vue: 'Vue'
+        }
+      }
+    }
+  },
+  server: {
+    port: 5173,
+    open: true
+  }
+});
+`;
+    } else {
+      // Vanilla JS
+      viteConfig = `import { defineConfig } from 'vite';
+import { resolve } from 'path';
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  },
+  build: {
+    outDir: 'dist/public',
+    lib: {
+      entry: resolve(__dirname, 'src/components/index.ts'),
+      name: 'Components',
+      formats: ['umd'],
+      fileName: () => 'components.js'
+    }
+  },
+  server: {
+    port: 5173,
+    open: true
+  }
+});
+`;
+    }
+    
+    await fs.writeFile(viteConfigPath, viteConfig);
+    
+    // Update package.json to include build scripts
+    await updatePackageJsonForVite();
+  }
+}
+
+/**
+ * Update package.json with Vite build scripts
+ */
+async function updatePackageJsonForVite() {
+  const packageJsonPath = path.join(process.cwd(), 'package.json');
+  
+  if (await fs.pathExists(packageJsonPath)) {
+    try {
+      const packageJson = await fs.readJSON(packageJsonPath);
+      
+      // Add or update scripts
+      packageJson.scripts = packageJson.scripts || {};
+      
+      if (!packageJson.scripts['build:components']) {
+        packageJson.scripts['build:components'] = 'vite build';
+      }
+      
+      if (!packageJson.scripts['dev:components']) {
+        packageJson.scripts['dev:components'] = 'vite';
+      }
+      
+      // Add required dependencies if they don't exist
+      packageJson.devDependencies = packageJson.devDependencies || {};
+      
+      if (!packageJson.devDependencies['vite']) {
+        packageJson.devDependencies['vite'] = '^4.4.9';
+      }
+      
+      // Write the updated package.json
+      await fs.writeJSON(packageJsonPath, packageJson, { spaces: 2 });
+      
+      console.log(chalk.blue('📦 Updated package.json with Vite build scripts'));
+      console.log(chalk.yellow('Run npm install to install new dependencies'));
+    } catch (error) {
+      console.error('Error updating package.json:', error);
+    }
+  }
+}
+
+/**
+ * Setup automatic rendering for components based on framework
+ */
+async function setupRendering(options: any): Promise<void> {
+  console.log(chalk.blue(`Setting up automatic rendering for ${options.framework} components`));
+  
+  // Validate framework
+  const framework = options.framework.toLowerCase();
+  if (!['react', 'vue', 'vanilla'].includes(framework)) {
+    throw new Error(`Unsupported framework: ${framework}. Supported frameworks are: react, vue, vanilla`);
+  }
+  
+  // Create server file if it doesn't exist
+  const serverFilePath = path.resolve('./src/server.ts');
+  const configPath = path.resolve(options.config);
+  
+  // Ensure config directory exists
+  await fs.ensureDir(configPath);
+  
+  // Check if components.json exists, create if not
+  const componentsPath = path.resolve(configPath, 'components.json');
+  if (!await fs.pathExists(componentsPath)) {
+    await fs.writeJSON(componentsPath, { components: {} }, { spaces: 2 });
+    console.log(chalk.green(`✅ Created components configuration at ${componentsPath}`));
+  }
+  
+  // Check if intents.json exists, create if not
+  const intentsPath = path.resolve(configPath, 'intents.json');
+  if (!await fs.pathExists(intentsPath)) {
+    await fs.writeJSON(intentsPath, { intents: [] }, { spaces: 2 });
+    console.log(chalk.green(`✅ Created intents configuration at ${intentsPath}`));
+  }
+  
+  // Create server file with automatic rendering setup
+  let serverContent = '';
+  
+  // Import statements based on framework
+  if (framework === 'react') {
+    serverContent = `import { createIXPServer } from 'ixp-server-sdk';
+import { createRenderMiddleware } from 'ixp-server-sdk/middleware';
+import { createReactRenderer } from 'ixp-server-sdk/renderers';
+import path from 'path';
+
+// Create IXP Server
+const server = createIXPServer({
+  port: ${options.port},
+  configDir: path.resolve('${options.config}'),
+});
+
+// Setup React renderer
+const reactRenderer = createReactRenderer();
+
+// Add rendering middleware
+server.use(
+  createRenderMiddleware({
+    renderers: {
+      react: reactRenderer,
+    },
+    defaultRenderer: 'react',
+  })
+);
+
+// Start server
+server.start().then(() => {
+  console.log("✅ IXP Server started on port ${options.port}");
+  console.log("🚀 React component rendering available at http://localhost:${options.port}/render-ui");
+});
+`;
+  } else if (framework === 'vue') {
+    serverContent = `import { createIXPServer } from 'ixp-server-sdk';
+import { createRenderMiddleware } from 'ixp-server-sdk/middleware';
+import { createVueRenderer } from 'ixp-server-sdk/renderers';
+import path from 'path';
+
+// Create IXP Server
+const server = createIXPServer({
+  port: ${options.port},
+  configDir: path.resolve('${options.config}'),
+});
+
+// Setup Vue renderer
+const vueRenderer = createVueRenderer();
+
+// Add rendering middleware
+server.use(
+  createRenderMiddleware({
+    renderers: {
+      vue: vueRenderer,
+    },
+    defaultRenderer: 'vue',
+  })
+);
+
+// Start server
+server.start().then(() => {
+  console.log("✅ IXP Server started on port ${options.port}");
+  console.log("🚀 Vue component rendering available at http://localhost:${options.port}/render-ui");
+});
+`;
+  } else { // vanilla
+    serverContent = `import { createIXPServer } from 'ixp-server-sdk';
+import { createRenderMiddleware } from 'ixp-server-sdk/middleware';
+import { createVanillaJSRenderer } from 'ixp-server-sdk/renderers';
+import path from 'path';
+
+// Create IXP Server
+const server = createIXPServer({
+  port: ${options.port},
+  configDir: path.resolve('${options.config}'),
+});
+
+// Setup Vanilla JS renderer
+const vanillaRenderer = createVanillaJSRenderer();
+
+// Add rendering middleware
+server.use(
+  createRenderMiddleware({
+    renderers: {
+      vanilla: vanillaRenderer,
+    },
+    defaultRenderer: 'vanilla',
+  })
+);
+
+// Start server
+server.start().then(() => {
+  console.log("✅ IXP Server started on port ${options.port}");
+  console.log("🚀 Vanilla JS component rendering available at http://localhost:${options.port}/render-ui");
+});
+`;
+  }
+  
+  // Write server file
+  if (!await fs.pathExists(serverFilePath)) {
+    await fs.outputFile(serverFilePath, serverContent);
+    console.log(chalk.green(`✅ Created server file with ${framework} rendering at ${serverFilePath}`));
+  } else {
+    // Ask user if they want to overwrite
+    const { overwrite } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'overwrite',
+        message: `Server file already exists at ${serverFilePath}. Overwrite?`,
+        default: false
+      }
+    ]);
+    
+    if (overwrite) {
+      await fs.outputFile(serverFilePath, serverContent);
+      console.log(chalk.green(`✅ Updated server file with ${framework} rendering at ${serverFilePath}`));
+    } else {
+      console.log(chalk.yellow(`⚠️ Skipped server file creation. You'll need to manually configure rendering.`));
+    }
+  }
+  
+  // Generate routes if needed
+  if (options.routes !== false) {
+    // Create routes directory if it doesn't exist
+    const routesDir = path.resolve('./src/routes');
+    await fs.ensureDir(routesDir);
+    
+    // Create render route file
+    const renderRoutePath = path.resolve(routesDir, 'render.ts');
+    const renderRouteContent = `import { Router } from 'express';
+import { createRenderMiddleware } from 'ixp-server-sdk/middleware';
+import { create${framework === 'vanilla' ? 'VanillaJS' : framework.charAt(0).toUpperCase() + framework.slice(1)}Renderer } from 'ixp-server-sdk/renderers';
+
+const router = Router();
+
+// Setup ${framework} renderer
+const ${framework}Renderer = create${framework === 'vanilla' ? 'VanillaJS' : framework.charAt(0).toUpperCase() + framework.slice(1)}Renderer();
+
+// Add rendering middleware to router
+router.use(
+  createRenderMiddleware({
+    renderers: {
+      ${framework}: ${framework}Renderer,
+    },
+    defaultRenderer: '${framework}',
+  })
+);
+
+export default router;
+`;
+    
+    if (!await fs.pathExists(renderRoutePath)) {
+      await fs.outputFile(renderRoutePath, renderRouteContent);
+      console.log(chalk.green(`✅ Created render route at ${renderRoutePath}`));
+    } else {
+      // Ask user if they want to overwrite
+      const { overwrite } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'overwrite',
+          message: `Render route file already exists at ${renderRoutePath}. Overwrite?`,
+          default: false
+        }
+      ]);
+      
+      if (overwrite) {
+        await fs.outputFile(renderRoutePath, renderRouteContent);
+        console.log(chalk.green(`✅ Updated render route at ${renderRoutePath}`));
+      } else {
+        console.log(chalk.yellow(`⚠️ Skipped render route creation. You'll need to manually configure rendering routes.`));
+      }
+    }
+  }
+  
+  console.log(chalk.green(`\n✅ Automatic rendering setup complete for ${framework} components!`));
+  console.log(chalk.blue(`\nTo start your server, run:`));
+  console.log(chalk.cyan(`  npm start`));
+  console.log(chalk.blue(`\nTo access the rendering UI, visit:`));
+  console.log(chalk.cyan(`  http://localhost:${options.port}/render-ui`));
 }
 
 /**

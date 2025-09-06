@@ -144,6 +144,20 @@ export interface IXPServerConfig {
     version?: string;
     description?: string;
   };
+  static?: {
+    enabled?: boolean;
+    publicPath?: string;
+    urlPath?: string;
+    maxAge?: number;
+    etag?: boolean;
+    index?: boolean;
+  };
+  errorPages?: {
+    enabled?: boolean;
+    debug?: boolean;
+    custom404?: string;
+    custom500?: string;
+  };
 }
 
 // Plugin System
@@ -166,14 +180,24 @@ export interface DataProvider {
   getCrawlerContent?: (options: CrawlerContentOptions) => Promise<CrawlerContentResponse>;
   resolveIntentData?: (intent: IntentRequest, context?: any) => Promise<Record<string, any>>;
   resolveComponentData?: (componentName: string, queryParams: Record<string, any>, context?: any) => Promise<Record<string, any>>;
+  
+  // Crawler Data Source Management
+  registerCrawlerDataSource?: (source: CrawlerDataSource) => void;
+  unregisterCrawlerDataSource?: (name: string) => boolean;
+  getCrawlerDataSources?: () => CrawlerDataSource[];
+  getCrawlerDataSource?: (name: string) => CrawlerDataSource | undefined;
 }
 
 export interface CrawlerContentOptions {
   cursor?: string;
   limit?: number;
   lastUpdated?: string;
-  format?: 'json' | 'ndjson';
+  format?: 'json' | 'xml' | 'csv';
   type?: string;
+  includeMetadata?: boolean;
+  source?: string; // Filter by specific data source
+  sources?: string[]; // Filter by multiple data sources
+  fields?: string[]; // Specific fields to include
 }
 
 export interface CrawlerContentResponse {
@@ -181,8 +205,10 @@ export interface CrawlerContentResponse {
   pagination: {
     nextCursor: string | null;
     hasMore: boolean;
+    total?: number;
   };
   lastUpdated: string;
+  metadata?: Record<string, any>;
 }
 
 export interface ContentItem {
@@ -191,7 +217,72 @@ export interface ContentItem {
   title: string;
   description: string;
   lastUpdated: string;
+  source?: string;
+  url?: string;
+  metadata?: Record<string, any>;
   [key: string]: any;
+}
+
+// Crawler Data Source Interfaces
+export interface CrawlerDataSource {
+  name: string;
+  description: string;
+  version: string;
+  schema: CrawlerDataSchema;
+  handler: CrawlerDataHandler;
+  config?: CrawlerDataSourceConfig;
+}
+
+export interface CrawlerDataSchema {
+  type: 'object';
+  properties: Record<string, any>;
+  required?: string[];
+  title?: string;
+  description?: string;
+}
+
+export interface CrawlerDataHandler {
+  (options: CrawlerDataSourceOptions): Promise<CrawlerDataSourceResponse>;
+}
+
+export interface CrawlerDataSourceOptions {
+  cursor?: string;
+  limit: number;
+  filters?: Record<string, any>;
+  sort?: { field: string; order: 'asc' | 'desc' }[];
+  fields?: string[];
+  lastUpdated?: string;
+}
+
+export interface CrawlerDataSourceResponse {
+  data: Record<string, any>[];
+  pagination: {
+    nextCursor: string | null;
+    hasMore: boolean;
+    total?: number;
+  };
+  lastUpdated: string;
+}
+
+export interface CrawlerDataSourceConfig {
+  enabled?: boolean;
+  rateLimit?: {
+    requests: number;
+    window: number; // in seconds
+  };
+  cache?: {
+    enabled: boolean;
+    ttl: number; // in seconds
+  };
+  auth?: {
+    required: boolean;
+    type: 'apiKey' | 'bearer' | 'basic';
+    header?: string;
+  };
+  pagination?: {
+    maxLimit: number;
+    defaultLimit: number;
+  };
 }
 
 // Server Instance Interface

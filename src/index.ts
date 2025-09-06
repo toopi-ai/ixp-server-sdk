@@ -40,13 +40,20 @@ import {
   createValidationMiddleware,
   createOriginValidationMiddleware,
   createTimeoutMiddleware,
-  createRequestIdMiddleware
+  createRequestIdMiddleware,
+  createRenderMiddleware
 } from './middleware/index';
 import {
   createSwaggerPlugin,
   createHealthMonitoringPlugin,
   createMetricsPlugin
 } from './plugins/index';
+
+import {
+  createReactRenderer,
+  createVueRenderer,
+  createVanillaJSRenderer
+} from './renderers/index';
 
 /**
  * Create a new IXP Server instance with the given configuration
@@ -379,7 +386,8 @@ export {
   IXPServer,
   IntentRegistry,
   ComponentRegistry,
-  IntentResolver
+  IntentResolver,
+  CrawlerDataSourceRegistry
 } from './core/index';
 
 export {
@@ -421,11 +429,19 @@ export {
   createOriginValidationMiddleware,
   createTimeoutMiddleware,
   createRequestIdMiddleware,
+  createRenderMiddleware,
   createSecurityHeadersMiddleware,
   createComponentAccessMiddleware,
   createLoggingMiddleware,
   MiddlewareFactory
 } from './middleware/index';
+
+// Re-export renderers
+export {
+  createReactRenderer,
+  createVueRenderer,
+  createVanillaJSRenderer
+} from './renderers/index';
 
 // Re-export all types
 export type {

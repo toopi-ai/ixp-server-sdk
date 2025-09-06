@@ -1,0 +1,124 @@
+{
+  "intents": [
+    {
+      "name": "search-cars",
+      "description": "Search for cars with various filters and criteria",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "General search query for cars"
+          },
+          "make": {
+            "type": "string",
+            "description": "Car manufacturer (e.g., Toyota, Honda, BMW)"
+          },
+          "model": {
+            "type": "string",
+            "description": "Car model name"
+          },
+          "location": {
+            "type": "string",
+            "description": "Search location or area"
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum number of results to return",
+            "default": 20
+          }
+        }
+      },
+      "component": "SearchFilters",
+      "version": "1.1.1",
+      "crawlable": false
+    },
+    {
+      "name": "filter-cars",
+      "description": "Filter cars by specific criteria like price, year, mileage, and features",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "priceMin": {
+            "type": "number",
+            "description": "Minimum price in USD"
+          },
+          "priceMax": {
+            "type": "number",
+            "description": "Maximum price in USD"
+          },
+          "yearMin": {
+            "type": "number",
+            "description": "Minimum manufacturing year"
+          },
+          "yearMax": {
+            "type": "number",
+            "description": "Maximum manufacturing year"
+          },
+          "mileageMax": {
+            "type": "number",
+            "description": "Maximum mileage"
+          },
+          "fuelType": {
+            "type": "string",
+            "enum": ["Gasoline", "Diesel", "Hybrid", "Electric", "Plug-in Hybrid"],
+            "description": "Fuel type preference"
+          },
+          "transmission": {
+            "type": "string",
+            "enum": ["Manual", "Automatic", "CVT"],
+            "description": "Transmission type"
+          },
+          "color": {
+            "type": "string",
+            "description": "Car color preference"
+          },
+          "bodyType": {
+            "type": "string",
+            "enum": ["Sedan", "SUV", "Hatchback", "Coupe", "Convertible", "Truck", "Van"],
+            "description": "Vehicle body type"
+          }
+        }
+      },
+      "component": "SearchFilters",
+      "version": "1.1.1",
+      "crawlable": false
+    },
+    {
+      "name": "view-car-details",
+      "description": "View detailed information about a specific car including specifications, features, and dealer contact",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "carId": {
+            "type": "string",
+            "description": "Unique identifier for the car",
+            "required": true
+          },
+          "stockNumber": {
+            "type": "string",
+            "description": "Stock number of the vehicle"
+          },
+          "vin": {
+            "type": "string",
+            "description": "Vehicle identification number"
+          },
+          "showFinancing": {
+            "type": "boolean",
+            "description": "Whether to show financing options",
+            "default": true
+          },
+          "showContactInfo": {
+            "type": "boolean",
+            "description": "Whether to show dealer contact information",
+            "default": true
+          }
+        },
+        "required": ["carId"]
+      },
+      "component": "CarDetails",
+      "version": "1.1.1",
+      "crawlable": false
+    }
+  ]
+}

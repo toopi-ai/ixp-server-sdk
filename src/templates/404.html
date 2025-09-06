@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>404 Not Found</title>
+  <style>
+    body {
+      background-color: #0d0d0d;
+      color: #f0f0f0;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    .typewriter {
+      font-size: 2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      border-right: 3px solid orange; /* Cursor */
+      animation: blinkCursor 0.7s infinite;
+    }
+
+    @keyframes blinkCursor {
+      0% { border-color: orange; }
+      50% { border-color: transparent; }
+      100% { border-color: orange; }
+    }
+  </style>
+</head>
+<body>
+  <div class="typewriter" id="typewriter"></div>
+
+  <script>
+    const text = "404 Error: Page Not Found";
+    const speed = 100; // typing speed in ms
+    let i = 0;
+
+    function typeEffect() {
+      if (i < text.length) {
+        document.getElementById("typewriter").innerHTML += text.charAt(i);
+        i++;
+        setTimeout(typeEffect, speed);
+      }
+    }
+
+    window.onload = typeEffect;
+  </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import axios from 'axios';
 import type { ComponentDefinition, IntentRequest } from '../types/index';
 import type { ComponentRegistry } from './ComponentRegistry';
 
@@ -12,7 +13,6 @@ export interface ComponentRenderOptions {
   intentId?: string;
   theme?: Record<string, any>;
   apiBase?: string;
-  ssr?: boolean;
   hydrate?: boolean;
   timeout?: number;
 }
@@ -79,7 +79,7 @@ export class ComponentRenderer {
 
       // Check cache if not in development
       const cacheKey = this.getCacheKey(options);
-      if (!options.ssr && this.renderCache.has(cacheKey)) {
+      if (this.renderCache.has(cacheKey)) {
         const cached = this.renderCache.get(cacheKey)!;
         return {
           ...cached,
@@ -106,30 +106,11 @@ export class ComponentRenderer {
         context.intentId = options.intentId;
       }
 
-      let html = '';
-      let css = '';
-      const errors: string[] = [];
-
-      if (options.ssr) {
-        // Server-side rendering
-        try {
-          const renderResult = await this.renderServerSide(component, options.props, context);
-          html = renderResult.html;
-          css = renderResult.css;
-        } catch (error) {
-          errors.push(`SSR Error: ${error instanceof Error ? error.message : String(error)}`);
-          // Fallback to client-side rendering
-          html = this.generateClientOnlyHTML(component, options.props, context);
-        }
-      } else {
-        // Client-side only rendering
-        html = this.generateClientOnlyHTML(component, options.props, context);
-      }
-
+      // Client-side only rendering
+      const html = this.generateClientOnlyHTML(component, options.props, context);
+      
       // Load CSS if available
-      if (!css) {
-        css = await this.loadComponentCSS(component);
-      }
+      const css = await this.loadComponentCSS(component);
 
       const result: ComponentRenderResult = {
         html,
@@ -141,13 +122,11 @@ export class ComponentRenderer {
           renderTime: Date.now() - startTime,
           bundleSize: component.bundleSize || '0KB'
         },
-        errors
+        errors: []
       };
 
       // Cache result
-      if (!options.ssr) {
-        this.renderCache.set(cacheKey, result);
-      }
+      this.renderCache.set(cacheKey, result);
 
       return result;
     } catch (error) {
@@ -216,6 +195,14 @@ export class ComponentRenderer {
     ${metaTags}
     ${renderResult.css ? `<style>${renderResult.css}</style>` : ''}
     <script src="/ixp-sdk.js"></script>
+    <script>
+      // Preload component bundle for faster rendering
+      const preloadLink = document.createElement('link');
+      preloadLink.rel = 'preload';
+      preloadLink.as = 'script';
+      preloadLink.href = '${renderResult.bundleUrl}';
+      document.head.appendChild(preloadLink);
+    </script>
 </head>
 <body>
     <div id="ixp-app">
@@ -244,22 +231,7 @@ export class ComponentRenderer {
     }
   }
 
-  /**
-   * Server-side rendering (placeholder - would need actual SSR implementation)
-   */
-  private async renderServerSide(
-    component: ComponentDefinition, 
-    props: Record<string, any>, 
-    context: Record<string, any>
-  ): Promise<{ html: string; css: string }> {
-    // This is a placeholder for actual SSR implementation
-    // In a real implementation, you would:
-    // 1. Load the component bundle in a server environment (e.g., using vm2 or similar)
-    // 2. Execute the component with the given props
-    // 3. Extract the rendered HTML and CSS
-    
-    throw new Error('Server-side rendering not implemented yet');
-  }
+
 
   /**
    * Generate client-only HTML container
@@ -293,8 +265,22 @@ export class ComponentRenderer {
         return this.bundleCache.get(cssPath)!;
       }
 
-      // In a real implementation, you'd load from the actual file system or CDN
-      const fullPath = path.join(process.cwd(), 'dist', cssPath);
+      // Try to fetch CSS from remote URL
+      if (cssPath.startsWith('http')) {
+        try {
+          const response = await axios.get(cssPath);
+          if (response.status === 200) {
+            const css = response.data;
+            this.bundleCache.set(cssPath, css);
+            return css;
+          }
+        } catch (fetchError) {
+          console.warn(`Failed to fetch CSS from remote URL ${cssPath}:`, fetchError);
+        }
+      }
+
+      // Fallback to local file system
+      const fullPath = path.join(process.cwd(), 'dist', cssPath.replace(/^https?:\/\/[^\/]+\//, ''));
       
       if (fs.existsSync(fullPath)) {
         const css = fs.readFileSync(fullPath, 'utf8');

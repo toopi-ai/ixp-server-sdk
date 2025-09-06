@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IXP Server - Debug Mode</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    .debug-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      display: inline-block;
+      margin-top: 10px;
+    }
+    .content {
+      padding: 40px;
+    }
+    .section {
+      margin-bottom: 40px;
+    }
+    .section h2 {
+      color: #2c3e50;
+      margin-bottom: 20px;
+      font-size: 1.5rem;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .info-card {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #3498db;
+    }
+    .info-card h3 {
+      color: #2c3e50;
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+    }
+    .info-card p {
+      color: #7f8c8d;
+      font-size: 0.9rem;
+    }
+    .endpoints {
+      display: grid;
+      gap: 15px;
+    }
+    .endpoint {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 20px;
+      transition: all 0.3s ease;
+    }
+    .endpoint:hover {
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+    .endpoint-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .method {
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .method.get { background: #d4edda; color: #155724; }
+    .method.post { background: #fff3cd; color: #856404; }
+    .endpoint-path {
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 1.1rem;
+      color: #2c3e50;
+      font-weight: 600;
+    }
+    .endpoint-description {
+      color: #6c757d;
+      font-size: 0.9rem;
+      margin-bottom: 15px;
+    }
+    .test-button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.3s ease;
+    }
+    .test-button:hover {
+      background: #2980b9;
+    }
+    .response-area {
+      margin-top: 15px;
+      padding: 15px;
+      background: #2c3e50;
+      color: #ecf0f1;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.8rem;
+      display: none;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .footer {
+      background: #2c3e50;
+      color: #ecf0f1;
+      padding: 20px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #27ae60;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚀 IXP Server</h1>
+      <div class="debug-badge">
+        <span class="status-indicator"></span>
+        Debug Mode Active
+      </div>
+    </div>
+    
+    <div class="content">
+      <div class="section">
+        <h2>📊 Server Information</h2>
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>Server Status</h3>
+            <p>🟢 Running on port {{serverInfo.port}}</p>
+          </div>
+          <div class="info-card">
+            <h3>Environment</h3>
+            <p>{{serverInfo.environment}}</p>
+          </div>
+          <div class="info-card">
+            <h3>Intents Loaded</h3>
+            <p>{{serverInfo.intentsCount}} intents</p>
+          </div>
+          <div class="info-card">
+            <h3>Components Loaded</h3>
+            <p>{{serverInfo.componentsCount}} components</p>
+          </div>
+          <div class="info-card">
+            <h3>Uptime</h3>
+            <p>{{serverInfo.uptime}}</p>
+          </div>
+          <div class="info-card">
+            <h3>Version</h3>
+            <p>{{serverInfo.version}}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h2>🔧 API Endpoints Testing</h2>
+        <div class="endpoints">
+          {{endpoints}}
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>IXP Server Debug Interface • {{timestamp}}</p>
+    </div>
+  </div>
+  
+  <script>
+    async function testEndpoint(method, path, displayPath) {
+      const responseId = 'response-' + path.replace(/[^a-zA-Z0-9]/g, '_');
+      const responseArea = document.getElementById(responseId);
+      
+      responseArea.style.display = 'block';
+      responseArea.innerHTML = 'Testing endpoint...';
+      
+      try {
+        const response = await fetch(path, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const contentType = response.headers.get('content-type');
+        let responseData;
+        
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+        
+        responseArea.innerHTML = `
+          <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+          <strong>Response:</strong><br>
+          <pre>${typeof responseData === 'object' ? JSON.stringify(responseData, null, 2) : responseData}</pre>
+        `;
+      } catch (error) {
+        responseArea.innerHTML = `
+          <strong>Error:</strong><br>
+          <pre>${error.message}</pre>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

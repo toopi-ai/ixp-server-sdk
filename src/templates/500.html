@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 - Internal Server Error | IXP Server</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            padding: 1rem;
+        }
+        
+        .error-container {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+        
+        .error-title {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #2d3748;
+        }
+        
+        .error-message {
+            font-size: 1.1rem;
+            color: #718096;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .debug-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            text-align: left;
+            border-left: 4px solid #fc466b;
+        }
+        
+        .debug-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .debug-content {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .error-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .detail-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid #3f5efb;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #4a5568;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .detail-value {
+            color: #2d3748;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .error-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(252, 70, 107, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .btn-secondary:hover {
+            background: #edf2f7;
+            transform: translateY(-2px);
+        }
+        
+        .footer {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #e2e8f0;
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .toggle-debug {
+            background: none;
+            border: none;
+            color: #3f5efb;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .error-code {
+                font-size: 6rem;
+            }
+            
+            .error-title {
+                font-size: 1.5rem;
+            }
+            
+            .error-container {
+                padding: 2rem;
+            }
+            
+            .error-actions {
+                flex-direction: column;
+            }
+            
+            .error-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">500</div>
+        <h1 class="error-title">Internal Server Error</h1>
+        <p class="error-message">
+            Something went wrong on our end. We're working to fix this issue.
+            <br>Please try again later or contact support if the problem persists.
+        </p>
+        
+        <div class="error-details">
+            <div class="detail-item">
+                <div class="detail-label">Timestamp</div>
+                <div class="detail-value">{{timestamp}}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Error ID</div>
+                <div class="detail-value">{{errorId}}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Request Path</div>
+                <div class="detail-value">{{path}}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Method</div>
+                <div class="detail-value">{{method}}</div>
+            </div>
+        </div>
+        
+        {{#debug}}
+        <div class="debug-section">
+            <div class="debug-title">
+                🐛 Debug Information
+            </div>
+            <div class="debug-content">{{errorStack}}</div>
+        </div>
+        {{/debug}}
+        
+        {{^debug}}
+        <button class="toggle-debug" onclick="toggleDebug()">Show Debug Information</button>
+        <div id="debug-info" class="debug-section hidden">
+            <div class="debug-title">
+                🐛 Debug Information
+            </div>
+            <div class="debug-content">{{errorStack}}</div>
+        </div>
+        {{/debug}}
+        
+        <div class="error-actions">
+            <a href="/" class="btn btn-primary">Go Home</a>
+            <button onclick="location.reload()" class="btn btn-secondary">Try Again</button>
+        </div>
+        
+        <div class="footer">
+            Powered by IXP Server SDK
+        </div>
+    </div>
+    
+    <script>
+        function toggleDebug() {
+            const debugInfo = document.getElementById('debug-info');
+            const toggleBtn = document.querySelector('.toggle-debug');
+            
+            if (debugInfo.classList.contains('hidden')) {
+                debugInfo.classList.remove('hidden');
+                toggleBtn.textContent = 'Hide Debug Information';
+            } else {
+                debugInfo.classList.add('hidden');
+                toggleBtn.textContent = 'Show Debug Information';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 .github
 .husky
+/examples-dist/
 /node_modules/
 /*/node_modules/
 /*/**/node_modules/
@@ -12,4 +13,6 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+package-lock.json
+
 

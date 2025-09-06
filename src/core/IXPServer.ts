@@ -2,6 +2,8 @@ import express, { Router, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import type {
   IXPServerConfig,
   IXPServerInstance,
@@ -17,6 +19,7 @@ import { IntentRegistry } from './IntentRegistry';
 import { ComponentRegistry } from './ComponentRegistry';
 import { ComponentRenderer } from './ComponentRenderer';
 import { IntentResolver } from './IntentResolver';
+import { CrawlerDataSourceRegistry } from './CrawlerDataSourceRegistry';
 import { IXPError, ErrorFactory, toErrorResponse, getErrorStatusCode } from '../utils/errors';
 import { Logger, createLogger } from '../utils/logger';
 import { MetricsService } from '../utils/metrics';
@@ -31,6 +34,7 @@ export class IXPServer implements IXPServerInstance {
   public readonly componentRegistry: ComponentRegistry;
   public readonly componentRenderer: ComponentRenderer;
   public readonly intentResolver: IntentResolver;
+  public readonly crawlerDataSourceRegistry: CrawlerDataSourceRegistry;
   
   private plugins: Map<string, IXPPlugin> = new Map();
   private middlewares: IXPMiddleware[] = [];
@@ -52,6 +56,7 @@ export class IXPServer implements IXPServerInstance {
     const componentSource = this.extractComponentSource(this.config.components);
     this.componentRegistry = new ComponentRegistry(componentSource);
     this.componentRenderer = new ComponentRenderer(this.componentRegistry);
+    this.crawlerDataSourceRegistry = new CrawlerDataSourceRegistry();
     this.intentResolver = new IntentResolver(
       this.intentRegistry,
       this.componentRegistry,
@@ -158,6 +163,20 @@ export class IXPServer implements IXPServerInstance {
       this.logger.debug('Security middleware configured');
     }
 
+    // Static file serving
+    if (this.config.static?.enabled !== false) {
+      const publicPath = this.config.static?.publicPath || path.join(process.cwd(), 'public');
+      const urlPath = this.config.static?.urlPath || '/public';
+      const staticOptions = {
+        maxAge: this.config.static?.maxAge || 86400000, // 1 day
+        etag: this.config.static?.etag !== false,
+        index: this.config.static?.index !== false ? ['index.html'] : false
+      };
+      
+      this.app.use(urlPath, express.static(publicPath, staticOptions));
+      this.logger.debug('Static file serving configured', { publicPath, urlPath });
+    }
+
     // Body parsing
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -220,7 +239,7 @@ export class IXPServer implements IXPServerInstance {
       }
     });
 
-    // POST /ixp/render - Component Resolution
+    // POST /ixp/render - Component Resolution (JSON response)
     this.app.post('/render', async (req: Request, res: Response, next: NextFunction) => {
       try {
         const { intent, options } = req.body;
@@ -278,7 +297,6 @@ export class IXPServer implements IXPServerInstance {
           intentId: intent.name,
           theme: options?.theme || this.config.theme || {},
           apiBase: options?.apiBase || '/ixp',
-          ssr: options?.ssr !== false,
           hydrate: options?.hydrate !== false,
           timeout: options?.timeout || 5000
         };
@@ -326,7 +344,6 @@ export class IXPServer implements IXPServerInstance {
           intentId: options.intentId,
           theme: options.theme || this.config.theme || {},
           apiBase: options.apiBase || '/ixp',
-          ssr: options.ssr !== false,
           hydrate: options.hydrate !== false,
           timeout: options.timeout || 5000
         };
@@ -382,6 +399,58 @@ export class IXPServer implements IXPServerInstance {
         res.json({
           component,
           timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    // POST /ixp/render-json - Component Resolution with JSON Output
+    this.app.post('/render-json', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { intent, options } = req.body;
+        
+        if (!intent || !intent.name) {
+          throw ErrorFactory.invalidRequest('Missing required parameter \'intent.name\'');
+        }
+
+        // Validate origin if component has restrictions
+        const origin = req.get('Origin');
+        if (origin) {
+          const intentDef = this.intentRegistry.get(intent.name);
+          if (intentDef) {
+            const componentDef = this.componentRegistry.get(intentDef.component);
+            if (componentDef && !this.componentRegistry.isOriginAllowed(componentDef.name, origin)) {
+              throw ErrorFactory.originNotAllowed(origin, componentDef.name);
+            }
+          }
+        }
+
+        const result = await this.intentResolver.resolveIntent(intent, options);
+        
+        // Render the component
+        const renderOptions = {
+          componentName: result.component.name,
+          props: result.record.props,
+          intentId: intent.name,
+          theme: options?.theme || this.config.theme || {},
+          apiBase: options?.apiBase || '/ixp',
+          hydrate: options?.hydrate !== false,
+          timeout: options?.timeout || 5000
+        };
+
+        const renderResult = await this.componentRenderer.render(renderOptions);
+        
+        // Return JSON response with all necessary data for client-side rendering
+        res.json({
+          component: result.component,
+          props: result.record.props,
+          html: renderResult.html,
+          css: renderResult.css,
+          bundleUrl: renderResult.bundleUrl,
+          context: renderResult.context,
+          hydrationScript: this.componentRenderer.generateHydrationScript(renderResult),
+          performance: renderResult.performance
         });
       } catch (error) {
         next(error);
@@ -572,12 +641,29 @@ export class IXPServer implements IXPServerInstance {
           cursor: req.query.cursor as string,
           limit: Math.min(parseInt(req.query.limit as string) || 100, 1000),
           lastUpdated: req.query.lastUpdated as string,
-          format: (req.query.format as 'json' | 'ndjson') || 'json',
-          type: req.query.type as string
+          format: (req.query.format as 'json' | 'xml' | 'csv') || 'json',
+          type: req.query.type as string,
+          includeMetadata: req.query.includeMetadata === 'true'
         };
+        
+        // Add optional fields if present
+        if (req.query.sources) {
+          options.sources = (req.query.sources as string).split(',');
+        }
+        if (req.query.fields) {
+          options.fields = (req.query.fields as string).split(',');
+        }
 
         let result;
-        if (this.config.dataProvider?.getCrawlerContent) {
+        
+        // Check if there are registered data sources
+        const dataSources = this.crawlerDataSourceRegistry.getDataSources();
+        
+        if (dataSources.length > 0) {
+          // Use crawler data source registry
+          result = await this.crawlerDataSourceRegistry.getCrawlerContent(options);
+        } else if (this.config.dataProvider?.getCrawlerContent) {
+          // Use custom data provider
           result = await this.config.dataProvider.getCrawlerContent(options);
         } else {
           // Default implementation - return crawlable intents metadata
@@ -636,6 +722,14 @@ export class IXPServer implements IXPServerInstance {
    * Setup error handling middleware
    */
   private setupErrorHandling(): void {
+    // 404 handler
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
+      if (!res.headersSent) {
+        this.handle404(req, res);
+      }
+    });
+
+    // Error handler
     this.app.use((error: any, req: Request, res: Response, next: NextFunction) => {
       const statusCode = getErrorStatusCode(error);
       const errorResponse = toErrorResponse(error);
@@ -647,8 +741,268 @@ export class IXPServer implements IXPServerInstance {
         method: req.method
       });
       
-      res.status(statusCode).json(errorResponse);
+      // Handle HTML error pages for browser requests
+      const acceptsHtml = req.headers.accept?.includes('text/html');
+      if (acceptsHtml && this.config.errorPages?.enabled !== false) {
+        if (statusCode >= 500) {
+          this.handle500(req, res, error);
+        } else {
+          this.handle404(req, res);
+        }
+      } else {
+        res.status(statusCode).json(errorResponse);
+      }
     });
+  }
+
+  private handle404(req: Request, res: Response): void {
+    try {
+      const template404Path = this.config.errorPages?.custom404 || 
+        path.join(__dirname, '../templates/404.html');
+      
+      if (fs.existsSync(template404Path)) {
+        const template = fs.readFileSync(template404Path, 'utf8');
+        res.status(404).type('html').send(template);
+      } else {
+        res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'The requested resource was not found',
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+    } catch (err) {
+      this.logger.error('Error rendering 404 page', { error: err });
+      res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'The requested resource was not found',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }
+
+  private handle500(req: Request, res: Response, error: any): void {
+    try {
+      const template500Path = this.config.errorPages?.custom500 || 
+        path.join(__dirname, '../templates/500.html');
+      
+      if (fs.existsSync(template500Path)) {
+        let template = fs.readFileSync(template500Path, 'utf8');
+        const errorId = crypto.randomUUID();
+        const isDebug = this.config.errorPages?.debug === true;
+        
+        // Replace template variables
+        template = template
+          .replace(/{{timestamp}}/g, new Date().toISOString())
+          .replace(/{{errorId}}/g, errorId)
+          .replace(/{{path}}/g, req.path)
+          .replace(/{{method}}/g, req.method)
+          .replace(/{{errorStack}}/g, isDebug ? (error.stack || error.message || 'Unknown error') : 'Error details hidden in production mode');
+        
+        // Handle debug sections
+         if (isDebug) {
+           template = template.replace(/\{\{#debug\}\}/g, '').replace(/\{\{\/debug\}\}/g, '');
+           template = template.replace(/\{\{\^debug\}\}[\s\S]*?\{\{\/debug\}\}/g, '');
+         } else {
+           template = template.replace(/\{\{#debug\}\}[\s\S]*?\{\{\/debug\}\}/g, '');
+           template = template.replace(/\{\{\^debug\}\}/g, '').replace(/\{\{\/debug\}\}/g, '');
+         }
+        
+        res.status(500).type('html').send(template);
+      } else {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'An internal server error occurred',
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+    } catch (err) {
+      this.logger.error('Error rendering 500 page', { error: err });
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An internal server error occurred',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }
+
+  /**
+   * Handle index page with debug mode detection
+   */
+  private handleIndexPage(req: Request, res: Response): void {
+    const isDebugMode = this.isDebugMode();
+    
+    if (isDebugMode) {
+      this.renderDebugIndexPage(req, res);
+    } else {
+      this.renderProductionIndexPage(req, res);
+    }
+  }
+
+  /**
+   * Check if server is running in debug mode
+   */
+  private isDebugMode(): boolean {
+    // Check multiple indicators for debug mode
+    const nodeEnv = process.env.NODE_ENV;
+    const loggingLevel = this.config.logging?.level;
+    const errorPagesDebug = this.config.errorPages?.debug;
+    const ixpDebug = process.env.IXP_DEBUG;
+    
+    const isDebug = (
+      nodeEnv === 'development' ||
+      loggingLevel === 'debug' ||
+      errorPagesDebug === true ||
+      ixpDebug === 'true' ||
+      // Also check for common development indicators
+      process.env.NODE_ENV?.toLowerCase().includes('dev') ||
+      process.env.DEBUG === 'true'
+    );
+    
+    this.logger.info('Debug mode check', {
+      NODE_ENV: nodeEnv,
+      loggingLevel,
+      errorPagesDebug,
+      IXP_DEBUG: ixpDebug,
+      DEBUG: process.env.DEBUG,
+      isDebugMode: isDebug
+    });
+    
+    return isDebug;
+  }
+
+  /**
+   * Render debug index page with endpoint testing interface
+   */
+  private renderDebugIndexPage(req: Request, res: Response): void {
+    try {
+      const endpoints = this.getAvailableEndpoints();
+      const serverInfo = this.getServerInfo();
+      
+      // Read the debug template file
+      const templatePath = path.join(__dirname, '../templates/debugindex.html');
+      let debugHtml = fs.readFileSync(templatePath, 'utf8');
+      
+      // Replace placeholders with actual data
+      debugHtml = debugHtml.replace(/{{serverInfo\.port}}/g, serverInfo.port.toString());
+      debugHtml = debugHtml.replace(/{{serverInfo\.environment}}/g, serverInfo.environment);
+      debugHtml = debugHtml.replace(/{{serverInfo\.intentsCount}}/g, serverInfo.intentsCount.toString());
+      debugHtml = debugHtml.replace(/{{serverInfo\.componentsCount}}/g, serverInfo.componentsCount.toString());
+      debugHtml = debugHtml.replace(/{{serverInfo\.uptime}}/g, serverInfo.uptime);
+      debugHtml = debugHtml.replace(/{{serverInfo\.version}}/g, serverInfo.version);
+      debugHtml = debugHtml.replace(/{{timestamp}}/g, new Date().toISOString());
+      
+      // Generate endpoints HTML
+      const endpointsHtml = endpoints.map(endpoint => `
+        <div class="endpoint">
+          <div class="endpoint-header">
+            <div>
+              <span class="method ${endpoint.method.toLowerCase()}">${endpoint.method}</span>
+              <span class="endpoint-path">${endpoint.path}</span>
+            </div>
+            <button class="test-button" onclick="testEndpoint('${endpoint.method}', '${endpoint.path}', '${endpoint.path.replace(/'/g, "\\'")}')">Test</button>
+          </div>
+          <div class="endpoint-description">${endpoint.description}</div>
+          <div class="response-area" id="response-${endpoint.path.replace(/[^a-zA-Z0-9]/g, '_')}"></div>
+        </div>
+      `).join('');
+      
+      debugHtml = debugHtml.replace(/{{endpoints}}/g, endpointsHtml);
+      
+      res.type('html').send(debugHtml);
+    } catch (error) {
+      this.logger.error('Failed to render debug index page:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  }
+
+  /**
+   * Render production index page
+   */
+  private renderProductionIndexPage(req: Request, res: Response): void {
+    try {
+      const serverInfo = this.getServerInfo();
+      
+      // Read the production template file
+      const templatePath = path.join(__dirname, '../templates/productionindex.html');
+      let productionHtml = fs.readFileSync(templatePath, 'utf8');
+      
+      // Replace placeholders with actual data
+      productionHtml = productionHtml.replace(/{{serverInfo\.intentsCount}}/g, serverInfo.intentsCount.toString());
+      productionHtml = productionHtml.replace(/{{serverInfo\.componentsCount}}/g, serverInfo.componentsCount.toString());
+      productionHtml = productionHtml.replace(/{{serverInfo\.version}}/g, serverInfo.version);
+      productionHtml = productionHtml.replace(/{{serverInfo\.port}}/g, serverInfo.port.toString());
+      productionHtml = productionHtml.replace(/{{serverInfo\.uptime}}/g, serverInfo.uptime);
+      
+      res.type('html').send(productionHtml);
+    } catch (error) {
+      this.logger.error('Failed to render production index page:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  }
+
+  /**
+   * Get available endpoints for testing
+   */
+  private getAvailableEndpoints(): Array<{method: string, path: string, description: string}> {
+    return [
+      {
+        method: 'GET',
+        path: '/ixp/intents',
+        description: 'Get all available intents with their definitions and parameters'
+      },
+      {
+        method: 'GET',
+        path: '/ixp/components',
+        description: 'Get all registered components with their metadata'
+      },
+      {
+        method: 'POST',
+        path: '/ixp/render',
+        description: 'Resolve intent requests to component descriptors'
+      },
+      {
+        method: 'GET',
+        path: '/ixp/crawler_content',
+        description: 'Get crawlable public content for SEO and indexing'
+      },
+      {
+        method: 'GET',
+        path: '/ixp/health',
+        description: 'Get server health status and system information'
+      },
+      ...(this.config.metrics?.enabled !== false ? [{
+        method: 'GET',
+        path: this.config.metrics?.endpoint || '/ixp/metrics',
+        description: 'Get server performance metrics and statistics'
+      }] : [])
+    ];
+  }
+
+  /**
+   * Get server information
+   */
+  private getServerInfo(): {port: number, environment: string, intentsCount: number, componentsCount: number, uptime: string, version: string} {
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = Math.floor(uptime % 60);
+    
+    return {
+      port: this.config.port || 3001,
+      environment: process.env.NODE_ENV || 'development',
+      intentsCount: this.intentRegistry.getAll().length,
+      componentsCount: this.componentRegistry.getAll().length,
+      uptime: `${hours}h ${minutes}m ${seconds}s`,
+      version: '1.1.1' // You might want to read this from package.json
+    };
   }
 
   /**
@@ -708,7 +1062,58 @@ export class IXPServer implements IXPServerInstance {
     
     return new Promise((resolve, reject) => {
       const app = express();
+      
+      // Add static file serving to main app if enabled
+      if (this.config.static?.enabled !== false) {
+        const publicPath = this.config.static?.publicPath || path.join(process.cwd(), 'public');
+        const urlPath = this.config.static?.urlPath || '/public';
+        const staticOptions = {
+          maxAge: this.config.static?.maxAge || 86400000, // 1 day
+          etag: this.config.static?.etag !== false,
+          index: this.config.static?.index !== false ? ['index.html'] : false
+        };
+        
+        app.use(urlPath, express.static(publicPath, staticOptions));
+        this.logger.debug('Static file serving configured on main app', { publicPath, urlPath });
+      }
+      
+      // Add index route with debug mode detection
+      app.get('/', (req: Request, res: Response) => {
+        this.handleIndexPage(req, res);
+      });
+      
       app.use('/ixp', this.app);
+      
+      // Add global error handling for non-IXP routes
+      app.use((req: Request, res: Response, next: NextFunction) => {
+        if (!res.headersSent) {
+          this.handle404(req, res);
+        }
+      });
+      
+      app.use((error: any, req: Request, res: Response, next: NextFunction) => {
+        const statusCode = getErrorStatusCode(error);
+        const errorResponse = toErrorResponse(error);
+        
+        this.metricsService.recordError(error);
+        this.logger.error('Request error', {
+          error: errorResponse.error,
+          path: req.path,
+          method: req.method
+        });
+        
+        // Handle HTML error pages for browser requests
+        const acceptsHtml = req.headers.accept?.includes('text/html');
+        if (acceptsHtml && this.config.errorPages?.enabled !== false) {
+          if (statusCode >= 500) {
+            this.handle500(req, res, error);
+          } else {
+            this.handle404(req, res);
+          }
+        } else {
+          res.status(statusCode).json(errorResponse);
+        }
+      });
       
       this.server = app.listen(serverPort, () => {
         this.logger.info(`🚀 IXP Server running on http://localhost:${serverPort}`);
@@ -832,6 +1237,65 @@ export class IXPServer implements IXPServerInstance {
       },
       ...config
     };
+  }
+
+  /**
+   * Register a crawler data source
+   */
+  registerCrawlerDataSource(dataSource: any): void {
+    this.crawlerDataSourceRegistry.register(dataSource);
+    this.logger.info(`Crawler data source '${dataSource.name}' registered`);
+  }
+
+  /**
+   * Unregister a crawler data source
+   */
+  unregisterCrawlerDataSource(name: string): boolean {
+    const result = this.crawlerDataSourceRegistry.unregister(name);
+    if (result) {
+      this.logger.info(`Crawler data source '${name}' unregistered`);
+    }
+    return result;
+  }
+
+  /**
+   * Get all registered crawler data sources
+   */
+  getCrawlerDataSources(): string[] {
+    return Array.from(this.crawlerDataSourceRegistry.getAllDataSources().keys());
+  }
+
+  /**
+   * Get detailed schema information for all crawler data sources
+   */
+  getCrawlerDataSourceSchemas(): Record<string, {
+    schema: any;
+    version: string;
+    requiredFields: string[];
+    optionalFields: string[];
+    fieldTypes: Record<string, string>;
+  }> {
+    return this.crawlerDataSourceRegistry.getSchemaInfo();
+  }
+
+  /**
+   * Validate a crawler data source configuration without registering it
+   */
+  validateCrawlerDataSource(source: any): { valid: boolean; errors: string[] } {
+    return this.crawlerDataSourceRegistry.validateConfiguration(source);
+  }
+
+  /**
+   * Get crawler data source registry statistics
+   */
+  getCrawlerDataSourceStats(): {
+    total: number;
+    enabled: number;
+    withAuth: number;
+    withCache: number;
+    withRateLimit: number;
+  } {
+    return this.crawlerDataSourceRegistry.getStats();
   }
 
   /**

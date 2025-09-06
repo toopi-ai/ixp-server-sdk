@@ -1,0 +1,301 @@
+{
+  "components": {
+    "CarCard": {
+      "framework": "react",
+      "remoteUrl": "http://localhost:3001/public/components.js",
+      "exportName": "CarCard",
+      "propsSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique car identifier"
+          },
+          "make": {
+            "type": "string",
+            "description": "Car manufacturer"
+          },
+          "model": {
+            "type": "string",
+            "description": "Car model"
+          },
+          "year": {
+            "type": "number",
+            "description": "Manufacturing year"
+          },
+          "price": {
+            "type": "number",
+            "description": "Car price in USD"
+          },
+          "mileage": {
+            "type": "number",
+            "description": "Car mileage"
+          },
+          "fuelType": {
+            "type": "string",
+            "description": "Fuel type (Gasoline, Diesel, Hybrid, Electric)"
+          },
+          "transmission": {
+            "type": "string",
+            "description": "Transmission type"
+          },
+          "color": {
+            "type": "string",
+            "description": "Car color"
+          },
+          "image": {
+            "type": "string",
+            "description": "Car image URL"
+          },
+          "dealerName": {
+            "type": "string",
+            "description": "Dealer name"
+          },
+          "location": {
+            "type": "string",
+            "description": "Car location"
+          }
+        },
+        "required": [
+          "make",
+          "model",
+          "year",
+          "price",
+          "mileage"
+        ]
+      },
+      "version": "1.1.1",
+      "allowedOrigins": [
+        "*"
+      ],
+      "bundleSize": "10KB",
+      "performance": {
+        "tti": "0.5s",
+        "bundleSizeGzipped": "3KB"
+      },
+      "securityPolicy": {
+        "allowEval": false,
+        "maxBundleSize": "100KB",
+        "sandboxed": true
+      }
+    },
+    "SearchFilters": {
+      "framework": "react",
+      "remoteUrl": "http://localhost:3001/public/components.js",
+      "exportName": "SearchFilters",
+      "propsSchema": {
+        "type": "object",
+        "properties": {
+          "initialFilters": {
+            "type": "object",
+            "description": "Initial filter values",
+            "properties": {
+              "make": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "yearMin": {
+                "type": "number"
+              },
+              "yearMax": {
+                "type": "number"
+              },
+              "priceMin": {
+                "type": "number"
+              },
+              "priceMax": {
+                "type": "number"
+              },
+              "mileageMax": {
+                "type": "number"
+              },
+              "fuelType": {
+                "type": "string"
+              },
+              "transmission": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "version": "1.1.1",
+      "allowedOrigins": [
+        "*"
+      ],
+      "bundleSize": "10KB",
+      "performance": {
+        "tti": "0.5s",
+        "bundleSizeGzipped": "3KB"
+      },
+      "securityPolicy": {
+        "allowEval": false,
+        "maxBundleSize": "100KB",
+        "sandboxed": true
+      }
+    },
+    "CarDetails": {
+      "framework": "react",
+      "remoteUrl": "http://localhost:3001/public/components.js",
+      "exportName": "CarDetails",
+      "propsSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Car ID"
+          },
+          "make": {
+            "type": "string",
+            "description": "Car manufacturer"
+          },
+          "model": {
+            "type": "string",
+            "description": "Car model"
+          },
+          "year": {
+            "type": "number",
+            "description": "Manufacturing year"
+          },
+          "price": {
+            "type": "number",
+            "description": "Car price in USD"
+          },
+          "mileage": {
+            "type": "number",
+            "description": "Car mileage"
+          },
+          "fuelType": {
+            "type": "string",
+            "description": "Fuel type"
+          },
+          "transmission": {
+            "type": "string",
+            "description": "Transmission type"
+          },
+          "color": {
+            "type": "string",
+            "description": "Car color"
+          },
+          "engine": {
+            "type": "string",
+            "description": "Engine specifications"
+          },
+          "drivetrain": {
+            "type": "string",
+            "description": "Drivetrain type"
+          },
+          "bodyType": {
+            "type": "string",
+            "description": "Body type"
+          },
+          "doors": {
+            "type": "number",
+            "description": "Number of doors"
+          },
+          "seats": {
+            "type": "number",
+            "description": "Number of seats"
+          },
+          "mpgCity": {
+            "type": "number",
+            "description": "City MPG"
+          },
+          "mpgHighway": {
+            "type": "number",
+            "description": "Highway MPG"
+          },
+          "vin": {
+            "type": "string",
+            "description": "Vehicle identification number"
+          },
+          "stockNumber": {
+            "type": "string",
+            "description": "Stock number"
+          },
+          "description": {
+            "type": "string",
+            "description": "Car description"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of image URLs"
+          },
+          "specifications": {
+            "type": "array",
+            "description": "Car specifications"
+          },
+          "features": {
+            "type": "array",
+            "description": "Car features"
+          },
+          "dealerName": {
+            "type": "string",
+            "description": "Dealer name"
+          },
+          "dealerPhone": {
+            "type": "string",
+            "description": "Dealer phone"
+          },
+          "dealerEmail": {
+            "type": "string",
+            "description": "Dealer email"
+          }
+        },
+        "required": [
+          "make",
+          "model",
+          "year",
+          "price",
+          "mileage"
+        ]
+      },
+      "version": "1.1.1",
+      "allowedOrigins": [
+        "*"
+      ],
+      "bundleSize": "10KB",
+      "performance": {
+        "tti": "0.5s",
+        "bundleSizeGzipped": "3KB"
+      },
+      "securityPolicy": {
+        "allowEval": false,
+        "maxBundleSize": "100KB",
+        "sandboxed": true
+      }
+    },
+    "Exterior": {
+      "framework": "react",
+      "remoteUrl": "/public/components.js",
+      "exportName": "Exterior",
+      "propsSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "version": "1.1.1",
+      "allowedOrigins": [
+        "*"
+      ],
+      "bundleSize": "10KB",
+      "performance": {
+        "tti": "0.5s",
+        "bundleSizeGzipped": "3KB"
+      },
+      "securityPolicy": {
+        "allowEval": false,
+        "maxBundleSize": "100KB",
+        "sandboxed": true
+      },
+      "crawlable": true
+    }
+  }
+}
