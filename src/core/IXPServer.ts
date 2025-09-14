@@ -239,6 +239,171 @@ export class IXPServer implements IXPServerInstance {
       }
     });
 
+    // GET /ixp/theme - Theme Configuration
+    this.app.get('/theme', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        // Default theme configuration
+        const defaultTheme = {
+          name: 'default',
+          version: '1.0.0',
+          mode: 'light',
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a'
+            },
+            secondary: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a'
+            },
+            background: {
+              default: '#ffffff',
+              paper: '#f8fafc',
+              elevated: '#ffffff'
+            },
+            text: {
+              primary: '#0f172a',
+              secondary: '#64748b',
+              disabled: '#cbd5e1'
+            },
+            border: {
+              default: '#e2e8f0',
+              light: '#f1f5f9',
+              focus: '#2563eb'
+            },
+            status: {
+              success: '#10b981',
+              warning: '#f59e0b',
+              error: '#ef4444',
+              info: '#3b82f6'
+            }
+          },
+          typography: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+              mono: ['Monaco', 'Consolas', 'monospace']
+            },
+            fontSize: {
+              xs: '0.75rem',
+              sm: '0.875rem',
+              base: '1rem',
+              lg: '1.125rem',
+              xl: '1.25rem',
+              '2xl': '1.5rem',
+              '3xl': '1.875rem',
+              '4xl': '2.25rem'
+            },
+            fontWeight: {
+              normal: 400,
+              medium: 500,
+              semibold: 600,
+              bold: 700
+            },
+            lineHeight: {
+              tight: 1.25,
+              normal: 1.5,
+              relaxed: 1.75
+            }
+          },
+          spacing: {
+            xs: '0.25rem',
+            sm: '0.5rem',
+            md: '1rem',
+            lg: '1.5rem',
+            xl: '2rem',
+            '2xl': '3rem'
+          },
+          breakpoints: {
+            sm: '640px',
+            md: '768px',
+            lg: '1024px',
+            xl: '1280px',
+            '2xl': '1536px'
+          },
+          components: {
+            button: {
+              base: {
+                borderRadius: '6px',
+                padding: '0.5rem 1rem',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                border: 'none',
+                transition: 'all 0.2s ease'
+              },
+              variants: {},
+              sizes: {},
+              states: {
+                hover: { opacity: 0.9 },
+                focus: { outline: '2px solid #3b82f6', outlineOffset: '2px' },
+                disabled: { opacity: 0.5, cursor: 'not-allowed' }
+              }
+            },
+            card: {
+              base: {
+                borderRadius: '8px',
+                backgroundColor: '#ffffff',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                padding: '1rem'
+              },
+              variants: {},
+              sizes: {},
+              states: {}
+            },
+            input: {
+              base: {
+                borderRadius: '6px',
+                border: '1px solid #e2e8f0',
+                padding: '0.75rem',
+                fontSize: '1rem'
+              },
+              variants: {},
+              sizes: {},
+              states: {
+                focus: { borderColor: '#2563eb', outline: 'none' }
+              }
+            },
+            modal: {
+              base: {
+                borderRadius: '8px',
+                backgroundColor: '#ffffff',
+                boxShadow: '0 20px 25px rgba(0, 0, 0, 0.15)'
+              },
+              variants: {},
+              sizes: {},
+              states: {}
+            }
+          }
+        };
+
+        // Use configured theme or default theme
+        const theme = this.config.theme || defaultTheme;
+        res.json({
+          theme,
+          version: '1.0.0',
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        next(error);
+      }
+    });
+
     // POST /ixp/render - Component Resolution (JSON response)
     this.app.post('/render', async (req: Request, res: Response, next: NextFunction) => {
       try {
@@ -267,262 +432,7 @@ export class IXPServer implements IXPServerInstance {
       }
     });
 
-    // POST /ixp/render-ui - Intent Resolution with HTML Output
-    this.app.post('/render-ui', async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { intent, options } = req.body;
-        
-        if (!intent || !intent.name) {
-          throw ErrorFactory.invalidRequest('Missing required parameter \'intent.name\'');
-        }
 
-        // Validate origin if component has restrictions
-        const origin = req.get('Origin');
-        if (origin) {
-          const intentDef = this.intentRegistry.get(intent.name);
-          if (intentDef) {
-            const componentDef = this.componentRegistry.get(intentDef.component);
-            if (componentDef && !this.componentRegistry.isOriginAllowed(componentDef.name, origin)) {
-              throw ErrorFactory.originNotAllowed(origin, componentDef.name);
-            }
-          }
-        }
-
-        const result = await this.intentResolver.resolveIntent(intent, options);
-        
-        // Render the component as HTML
-        const renderOptions = {
-          componentName: result.component.name,
-          props: result.record.props,
-          intentId: intent.name,
-          theme: options?.theme || this.config.theme || {},
-          apiBase: options?.apiBase || '/ixp',
-          hydrate: options?.hydrate !== false,
-          timeout: options?.timeout || 5000
-        };
-
-        const renderResult = await this.componentRenderer.render(renderOptions);
-        
-        const html = this.componentRenderer.generatePage(renderResult, {
-          title: `${intent.name} - ${result.component.name}`,
-          meta: {
-            'intent-name': intent.name,
-            'component-name': result.component.name,
-            'render-time': renderResult.performance.renderTime.toString()
-          }
-        });
-        
-        res.setHeader('Content-Type', 'text/html');
-        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-        res.send(html);
-      } catch (error) {
-        next(error);
-      }
-    });
-
-    // POST /ixp/components/render - Direct Component Rendering
-    this.app.post('/components/render', async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { componentName, props, options = {} } = req.body;
-        
-        if (!componentName) {
-          throw ErrorFactory.invalidRequest('Missing required parameter \'componentName\'');
-        }
-
-        // Validate origin if component has restrictions
-        const origin = req.get('Origin');
-        if (origin) {
-          const componentDef = this.componentRegistry.get(componentName);
-          if (componentDef && !this.componentRegistry.isOriginAllowed(componentName, origin)) {
-            throw ErrorFactory.originNotAllowed(origin, componentName);
-          }
-        }
-
-        const renderOptions = {
-          componentName,
-          props: props || {},
-          intentId: options.intentId,
-          theme: options.theme || this.config.theme || {},
-          apiBase: options.apiBase || '/ixp',
-          hydrate: options.hydrate !== false,
-          timeout: options.timeout || 5000
-        };
-
-        const result = await this.componentRenderer.render(renderOptions);
-        
-        // Return different formats based on Accept header
-        const acceptHeader = req.get('Accept');
-        if (acceptHeader?.includes('text/html')) {
-          // Return full HTML page
-          const html = this.componentRenderer.generatePage(result, {
-            title: `${componentName} Component`,
-            meta: {
-              'component-name': componentName,
-              'render-time': result.performance.renderTime.toString()
-            }
-          });
-          res.setHeader('Content-Type', 'text/html');
-          res.send(html);
-        } else {
-          // Return JSON response
-          res.json({
-            ...result,
-            hydrationScript: this.componentRenderer.generateHydrationScript(result)
-          });
-        }
-      } catch (error) {
-        next(error);
-      }
-    });
-
-    // GET /ixp/components/:name - Get Component Definition
-    this.app.get('/components/:name', async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { name } = req.params;
-        
-        if (!name) {
-          throw ErrorFactory.invalidRequest('Component name is required');
-        }
-        
-        const component = this.componentRegistry.get(name);
-        
-        if (!component) {
-          throw ErrorFactory.componentNotFound(name);
-        }
-
-        // Validate origin if component has restrictions
-        const origin = req.get('Origin');
-        if (origin && !this.componentRegistry.isOriginAllowed(name, origin)) {
-          throw ErrorFactory.originNotAllowed(origin, name);
-        }
-
-        res.json({
-          component,
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        next(error);
-      }
-    });
-
-    // POST /ixp/render-json - Component Resolution with JSON Output
-    this.app.post('/render-json', async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { intent, options } = req.body;
-        
-        if (!intent || !intent.name) {
-          throw ErrorFactory.invalidRequest('Missing required parameter \'intent.name\'');
-        }
-
-        // Validate origin if component has restrictions
-        const origin = req.get('Origin');
-        if (origin) {
-          const intentDef = this.intentRegistry.get(intent.name);
-          if (intentDef) {
-            const componentDef = this.componentRegistry.get(intentDef.component);
-            if (componentDef && !this.componentRegistry.isOriginAllowed(componentDef.name, origin)) {
-              throw ErrorFactory.originNotAllowed(origin, componentDef.name);
-            }
-          }
-        }
-
-        const result = await this.intentResolver.resolveIntent(intent, options);
-        
-        // Render the component
-        const renderOptions = {
-          componentName: result.component.name,
-          props: result.record.props,
-          intentId: intent.name,
-          theme: options?.theme || this.config.theme || {},
-          apiBase: options?.apiBase || '/ixp',
-          hydrate: options?.hydrate !== false,
-          timeout: options?.timeout || 5000
-        };
-
-        const renderResult = await this.componentRenderer.render(renderOptions);
-        
-        // Return JSON response with all necessary data for client-side rendering
-        res.json({
-          component: result.component,
-          props: result.record.props,
-          html: renderResult.html,
-          css: renderResult.css,
-          bundleUrl: renderResult.bundleUrl,
-          context: renderResult.context,
-          hydrationScript: this.componentRenderer.generateHydrationScript(renderResult),
-          performance: renderResult.performance
-        });
-      } catch (error) {
-        next(error);
-      }
-    });
-
-    // GET /ixp/components/:name/bundle - Serve Component Bundle
-    this.app.get('/components/:name/bundle', async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { name } = req.params;
-        
-        if (!name) {
-          throw ErrorFactory.invalidRequest('Component name is required');
-        }
-        
-        const component = this.componentRegistry.get(name);
-        
-        if (!component) {
-          throw ErrorFactory.componentNotFound(name);
-        }
-
-        // Validate origin if component has restrictions
-        const origin = req.get('Origin');
-        if (origin && !this.componentRegistry.isOriginAllowed(name, origin)) {
-          throw ErrorFactory.originNotAllowed(origin, name);
-        }
-
-        // Serve the bundle file
-        const bundlePath = component.remoteUrl.startsWith('/') 
-          ? component.remoteUrl.substring(1) 
-          : component.remoteUrl;
-        
-        res.setHeader('Content-Type', 'application/javascript');
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.sendFile(bundlePath, { root: process.cwd() });
-      } catch (error) {
-        next(error);
-      }
-    });
-
-    // GET /ixp/components/:name/css - Serve Component CSS
-    this.app.get('/components/:name/css', async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { name } = req.params;
-        
-        if (!name) {
-          throw ErrorFactory.invalidRequest('Component name is required');
-        }
-        
-        const component = this.componentRegistry.get(name);
-        
-        if (!component) {
-          throw ErrorFactory.componentNotFound(name);
-        }
-
-        // Validate origin if component has restrictions
-        const origin = req.get('Origin');
-        if (origin && !this.componentRegistry.isOriginAllowed(name, origin)) {
-          throw ErrorFactory.originNotAllowed(origin, name);
-        }
-
-        // Serve the CSS file
-        const cssPath = component.remoteUrl.replace('.esm.js', '.css');
-        const fullCssPath = cssPath.startsWith('/') ? cssPath.substring(1) : cssPath;
-        
-        res.setHeader('Content-Type', 'text/css');
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.sendFile(fullCssPath, { root: process.cwd() });
-      } catch (error) {
-        next(error);
-      }
-    });
 
     // GET /ixp/sdk - Serve IXP SDK runtime
     this.app.get('/sdk', async (req: Request, res: Response, next: NextFunction) => {
@@ -566,73 +476,7 @@ export class IXPServer implements IXPServerInstance {
       }
     });
 
-    // GET /view/:componentName - Component View for iframe embedding
-    this.app.get('/view/:componentName', async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { componentName } = req.params;
-        
-        if (!componentName) {
-          throw ErrorFactory.invalidRequest('Component name is required');
-        }
-        
-        const component = this.componentRegistry.get(componentName);
-        
-        if (!component) {
-          throw ErrorFactory.componentNotFound(componentName);
-        }
-
-        // Validate origin if component has restrictions
-        const origin = req.get('Origin');
-        if (origin && !this.componentRegistry.isOriginAllowed(componentName, origin)) {
-          throw ErrorFactory.originNotAllowed(origin, componentName);
-        }
-
-        // Extract props from query parameters
-        let props = { ...req.query };
-        
-        // Use data provider to resolve component data if available
-        if (this.config.dataProvider?.resolveComponentData) {
-          try {
-            const resolvedData = await this.config.dataProvider.resolveComponentData(
-              componentName,
-              req.query,
-              { req, res }
-            );
-            props = { ...props, ...resolvedData };
-          } catch (error) {
-            this.logger.warn(`Failed to resolve component data for ${componentName}:`, error);
-            // Continue with query params only if data provider fails
-          }
-        }
-        
-        const renderOptions = {
-          componentName,
-          props,
-          theme: this.config.theme || {},
-          apiBase: '/ixp',
-          ssr: true,
-          hydrate: true,
-          timeout: 5000
-        };
-
-        const renderResult = await this.componentRenderer.render(renderOptions);
-        
-        const html = this.componentRenderer.generatePage(renderResult, {
-          title: `${componentName} Component`,
-          meta: {
-            'component-name': componentName,
-            'render-time': renderResult.performance.renderTime.toString(),
-            'viewport': 'width=device-width, initial-scale=1.0'
-          }
-        });
-        
-        res.setHeader('Content-Type', 'text/html');
-        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-        res.send(html);
-      } catch (error) {
-        next(error);
-      }
-    });
+  
 
     // GET /ixp/crawler_content - Crawler Content
     this.app.get('/crawler_content', async (req: Request, res: Response, next: NextFunction) => {
@@ -964,6 +808,11 @@ export class IXPServer implements IXPServerInstance {
         description: 'Get all registered components with their metadata'
       },
       {
+        method: 'GET',
+        path: '/ixp/theme',
+        description: 'Get the current theme configuration'
+      },
+      {
         method: 'POST',
         path: '/ixp/render',
         description: 'Resolve intent requests to component descriptors'
@@ -1077,8 +926,28 @@ export class IXPServer implements IXPServerInstance {
         this.logger.debug('Static file serving configured on main app', { publicPath, urlPath });
       }
       
+      // Add templates directory serving for React renderer
+      const templatesPath = path.join(__dirname, '../../templates');
+      if (fs.existsSync(templatesPath)) {
+        app.use('/templates', express.static(templatesPath, {
+          maxAge: 86400000, // 1 day
+          etag: true
+        }));
+        this.logger.debug('Templates directory serving configured', { templatesPath });
+      }
+      
+           app.get('/', (req, res) => {
+               // Get theme configuration
+               const theme = this.config.theme || {};
+               
+               // Generate chatbox HTML with theme integration
+               const chatboxHTML = this.generateChatboxHTML(theme);
+               
+               res.setHeader('Content-Type', 'text/html');
+               res.send(chatboxHTML);
+            });
       // Add index route with debug mode detection
-      app.get('/', (req: Request, res: Response) => {
+      app.get('/ixp', (req: Request, res: Response) => {
         this.handleIndexPage(req, res);
       });
       
@@ -1323,5 +1192,63 @@ export class IXPServer implements IXPServerInstance {
     this.middlewares.length = 0;
     
     this.logger.info('IXP Server destroyed');
+  }
+
+  /**
+   * Generate chatbox HTML with theme integration
+   */
+  private generateChatboxHTML(theme: any): string {
+    // Read the chatbox template
+    const templatePath = path.join(__dirname, '../../src/templates/chatbox.html');
+    let html = fs.readFileSync(templatePath, 'utf8');
+    
+    // Extract theme colors with fallbacks
+    const colors = {
+      primary: theme.colors?.primary || '#3b82f6',
+      secondary: theme.colors?.secondary || '#64748b',
+      background: theme.colors?.background?.default || '#ffffff',
+      surface: theme.colors?.background?.paper || '#f8fafc',
+      text: theme.colors?.text?.primary || '#1e293b',
+      textSecondary: theme.colors?.text?.secondary || '#64748b',
+      border: theme.colors?.border?.default || '#e2e8f0',
+      success: theme.colors?.status?.success || '#10b981',
+      error: theme.colors?.status?.error || '#ef4444'
+    };
+
+    const typography = {
+      fontFamily: theme.typography?.fontFamily?.sans?.[0] || 'Inter, system-ui, sans-serif',
+      fontSize: theme.typography?.fontSize?.base || '1rem'
+    };
+
+    const spacing = {
+      sm: theme.spacing?.sm || '8px',
+      md: theme.spacing?.md || '16px',
+      lg: theme.spacing?.lg || '24px'
+    };
+
+    // Inject CSS custom properties
+    const cssVariables = `
+    :root {
+        --font-family: ${typography.fontFamily};
+        --font-size: ${typography.fontSize};
+        --primary-color: ${colors.primary};
+        --secondary-color: ${colors.secondary};
+        --background-color: ${colors.background};
+        --surface-color: ${colors.surface};
+        --text-color: ${colors.text};
+        --text-secondary-color: ${colors.textSecondary};
+        --border-color: ${colors.border};
+        --spacing-sm: ${spacing.sm};
+        --spacing-md: ${spacing.md};
+        --spacing-lg: ${spacing.lg};
+        --success-color: ${colors.success};
+        --error-color: ${colors.error};
+    }
+    `;
+    
+    // Inject CSS variables into the style section
+    html = html.replace('<style>', '<style>' + cssVariables);
+
+    return html;
   }
 }

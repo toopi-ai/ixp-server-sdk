@@ -17,7 +17,7 @@ import { Logger } from '../utils/logger';
 export interface RenderMiddlewareOptions {
   /**
    * Base path for the render endpoint
-   * @default '/render-ui'
+   * @default '/render'
    */
   basePath?: string;
 
@@ -73,7 +73,7 @@ export function createRenderMiddleware(
   options: RenderMiddlewareOptions = {}
 ) {
   const {
-    basePath = '/render-ui',
+    basePath = '/render',
     enableSSR = true,
     renderers = {},
     template,

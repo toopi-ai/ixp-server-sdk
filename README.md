@@ -83,7 +83,7 @@ server.start();
 Or use the CLI to set up rendering:
 
 ```bash
-ixp-server setup:render --framework react
+
 ```
 # Or try our examples
 git clone https://github.com/your-org/ixp-server-sdk.git

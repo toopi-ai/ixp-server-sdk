@@ -49,11 +49,7 @@ import {
   createMetricsPlugin
 } from './plugins/index';
 
-import {
-  createReactRenderer,
-  createVueRenderer,
-  createVanillaJSRenderer
-} from './renderers/index';
+
 
 /**
  * Create a new IXP Server instance with the given configuration
@@ -436,12 +432,7 @@ export {
   MiddlewareFactory
 } from './middleware/index';
 
-// Re-export renderers
-export {
-  createReactRenderer,
-  createVueRenderer,
-  createVanillaJSRenderer
-} from './renderers/index';
+
 
 // Re-export all types
 export type {

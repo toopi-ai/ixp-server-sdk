@@ -22,7 +22,7 @@ async function main() {
   });
 
   // The server already has built-in render endpoints:
-  // POST /ixp/render-ui - for intent-based rendering
+  // POST /ixp/render - for intent-based rendering
   // GET /ixp/view/:componentName - for direct component rendering
 
 

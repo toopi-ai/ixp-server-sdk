@@ -537,6 +537,28 @@ export function applyTheme(componentName: string, variant?: string, size?: strin
   return styles;
 }
 
+// Browser compatibility: Create global IXPRuntime object
+if (typeof window !== 'undefined') {
+  (window as any).IXPRuntime = {
+    initialize,
+    notify,
+    nextStep,
+    fetchData,
+    useTheme,
+    setAvailableThemes,
+    getAvailableThemes,
+    createDarkTheme,
+    applyTheme,
+    getConfig,
+    isInitialized,
+    getContext,
+    subscribe,
+    emit,
+    reportMetrics,
+    log
+  };
+}
+
 export default {
   initialize,
   notify,

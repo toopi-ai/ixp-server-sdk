@@ -24,11 +24,13 @@
   "files": [
     "dist",
     "templates",
+    "renderer",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc && tsc -p tsconfig.types.json && npm run build:examples && npm run copy:templates",
+    "build:renderer": "cd renderer && npm run build && cd .. ",
     "copy:templates": "cp -r src/templates dist/",
     "build:examples": "tsc -p tsconfig.examples.json",
     "example:basic": "node examples-dist/basic-server.js",

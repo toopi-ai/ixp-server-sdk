@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { LocalTheme, localTheme } from '../theme';
 
 interface FilterValues {
   make: string;
@@ -17,12 +18,14 @@ interface SearchFiltersProps {
   onFiltersChange?: (filters: FilterValues) => void;
   onSearch?: () => void;
   onReset?: () => void;
+  theme?: LocalTheme;
 }
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
   onFiltersChange,
   onSearch,
-  onReset
+  onReset,
+  theme = localTheme
 }) => {
   const [filters, setFilters] = useState<FilterValues>({
     make: '',
@@ -73,38 +76,38 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
   const inputStyle = {
     width: '100%',
-    padding: '8px 12px',
-    border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    fontSize: '14px',
-    backgroundColor: '#fff'
+    ...theme.components.button.base,
+    backgroundColor: theme.colors.background.default,
+    border: `1px solid ${theme.colors.border.default}`,
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.sm,
+    padding: theme.spacing[2] + ' ' + theme.spacing[3]
   };
 
   const labelStyle = {
     display: 'block',
-    marginBottom: '4px',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#374151'
+    marginBottom: theme.spacing[1],
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.primary
   };
 
   const sectionStyle = {
-    marginBottom: '16px'
+    marginBottom: theme.spacing[4]
   };
 
   return (
     <div className="search-filters" style={{
-      backgroundColor: '#f9fafb',
-      padding: '20px',
-      borderRadius: '8px',
-      border: '1px solid #e5e7eb',
+      ...theme.components.card.base,
+      ...theme.components.card.variants.default,
+      backgroundColor: theme.colors.background.paper,
       maxWidth: '300px'
     }}>
       <h3 style={{
-        margin: '0 0 20px 0',
-        fontSize: '18px',
-        fontWeight: 'bold',
-        color: '#111827'
+        margin: `0 0 ${theme.spacing[6]} 0`,
+        fontSize: theme.typography.fontSize.lg,
+        fontWeight: theme.typography.fontWeight.bold,
+        color: theme.colors.text.primary
       }}>
         Search Filters
       </h3>
@@ -136,7 +139,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
       <div style={sectionStyle}>
         <label style={labelStyle}>Year Range</label>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: theme.spacing[2] }}>
           <input
             type="number"
             placeholder="Min"
@@ -160,7 +163,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
 
       <div style={sectionStyle}>
         <label style={labelStyle}>Price Range ($)</label>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: theme.spacing[2] }}>
           <input
             type="number"
             placeholder="Min"
@@ -237,25 +240,24 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
         </select>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+      <div style={{ display: 'flex', gap: theme.spacing[2], marginTop: theme.spacing[6] }}>
         <button
           onClick={onSearch}
           style={{
             flex: 1,
-            padding: '10px 16px',
-            backgroundColor: '#2563eb',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500'
+            ...theme.components.button.base,
+            ...theme.components.button.variants.primary,
+            ...theme.components.button.sizes.md
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#1d4ed8';
+            Object.assign(e.currentTarget.style, theme.components.button.states.hover);
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#2563eb';
+            Object.assign(e.currentTarget.style, {
+              ...theme.components.button.base,
+              ...theme.components.button.variants.primary,
+              ...theme.components.button.sizes.md
+            });
           }}
         >
           Search
@@ -264,20 +266,21 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           onClick={handleReset}
           style={{
             flex: 1,
-            padding: '10px 16px',
-            backgroundColor: '#6b7280',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500'
+            ...theme.components.button.base,
+            ...theme.components.button.variants.secondary,
+            ...theme.components.button.sizes.md
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#4b5563';
+            Object.assign(e.currentTarget.style, {
+              backgroundColor: theme.colors.secondary[600]
+            });
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#6b7280';
+            Object.assign(e.currentTarget.style, {
+              ...theme.components.button.base,
+              ...theme.components.button.variants.secondary,
+              ...theme.components.button.sizes.md
+            });
           }}
         >
           Reset

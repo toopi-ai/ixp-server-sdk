@@ -1,4 +1,5 @@
 import React from 'react';
+import { LocalTheme, localTheme } from '../theme';
 
 interface CarCardProps {
   make: string;
@@ -11,6 +12,7 @@ interface CarCardProps {
   color?: string;
   imageUrl?: string;
   onViewDetails?: () => void;
+  theme?: LocalTheme;
 }
 
 export const CarCard: React.FC<CarCardProps> = ({
@@ -23,7 +25,8 @@ export const CarCard: React.FC<CarCardProps> = ({
   transmission = 'Automatic',
   color = 'Black',
   imageUrl = 'https://via.placeholder.com/300x200?text=Car+Image',
-  onViewDetails
+  onViewDetails,
+  theme = localTheme
 }) => {
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -39,18 +42,25 @@ export const CarCard: React.FC<CarCardProps> = ({
     return new Intl.NumberFormat('en-US').format(mileage) + ' miles';
   };
 
+  const cardStyles = {
+    ...theme.components.card.base,
+    ...theme.components.card.variants.elevated,
+    ...theme.components.card.sizes.md,
+    maxWidth: '320px',
+    cursor: 'pointer',
+    transition: 'transform 0.2s, box-shadow 0.2s'
+  };
+
+  const buttonStyles = {
+    ...theme.components.button.base,
+    ...theme.components.button.variants.primary,
+    ...theme.components.button.sizes.md,
+    width: '100%',
+    marginTop: theme.spacing[3]
+  };
+
   return (
-    <div className="car-card" style={{
-      border: '1px solid #e0e0e0',
-      borderRadius: '8px',
-      padding: '16px',
-      margin: '8px',
-      backgroundColor: '#fff',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-      maxWidth: '320px',
-      cursor: 'pointer',
-      transition: 'transform 0.2s, box-shadow 0.2s'
-    }}
+    <div className="car-card" style={cardStyles}
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = 'translateY(-2px)';
       e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
@@ -75,27 +85,27 @@ export const CarCard: React.FC<CarCardProps> = ({
       
       <div className="car-info">
         <h3 style={{
-          margin: '0 0 8px 0',
-          fontSize: '18px',
-          fontWeight: 'bold',
-          color: '#333'
+          margin: `0 0 ${theme.spacing[2]} 0`,
+          fontSize: theme.typography.fontSize.lg,
+          fontWeight: theme.typography.fontWeight.bold,
+          color: theme.colors.text.primary
         }}>
           {year} {make} {model}
         </h3>
         
         <div className="car-price" style={{
-          fontSize: '20px',
-          fontWeight: 'bold',
-          color: '#2563eb',
-          marginBottom: '12px'
+          fontSize: theme.typography.fontSize.xl,
+          fontWeight: theme.typography.fontWeight.bold,
+          color: theme.colors.primary[600],
+          marginBottom: theme.spacing[3]
         }}>
           {formatPrice(price)}
         </div>
         
         <div className="car-details" style={{
-          fontSize: '14px',
-          color: '#666',
-          lineHeight: '1.4'
+          fontSize: theme.typography.fontSize.sm,
+          color: theme.colors.text.secondary,
+          lineHeight: theme.typography.lineHeight.relaxed
         }}>
           <div style={{ marginBottom: '4px' }}>
             <strong>Mileage:</strong> {formatMileage(mileage)}
@@ -112,23 +122,12 @@ export const CarCard: React.FC<CarCardProps> = ({
         </div>
         
         <button 
-          style={{
-            marginTop: '12px',
-            padding: '8px 16px',
-            backgroundColor: '#2563eb',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500',
-            width: '100%'
-          }}
+          style={buttonStyles}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#1d4ed8';
+            Object.assign(e.currentTarget.style, theme.components.button.states.hover);
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#2563eb';
+            Object.assign(e.currentTarget.style, buttonStyles);
           }}
           onClick={(e) => {
             e.stopPropagation();

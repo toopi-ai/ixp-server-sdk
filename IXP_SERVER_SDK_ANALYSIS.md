@@ -220,7 +220,7 @@ This document provides a comprehensive analysis of the IXP Server SDK codebase, 
 | `validate` | ✅ Complete | Config validation | ~80 |
 | `generate:intent` | ✅ Complete | Intent generation | ~120 |
 | `generate:component` | ✅ Complete | Component generation | ~150 |
-| `setup:render` | ✅ Complete | Rendering setup | ~200 |
+
 | `info` | ✅ Complete | System information | ~80 |
 | `docs` | ✅ Complete | Documentation generation | ~100 |
 

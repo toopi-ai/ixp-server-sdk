@@ -3,6 +3,7 @@ import * as path from 'path';
 import axios from 'axios';
 import type { ComponentDefinition, IntentRequest } from '../types/index';
 import type { ComponentRegistry } from './ComponentRegistry';
+// Built renderer is available in templates/renderer/ for client-side use
 
 /**
  * Component Render Options
@@ -38,15 +39,7 @@ export interface ComponentRenderResult {
   errors: string[];
 }
 
-/**
- * Component Hydration Script
- */
-export interface HydrationScript {
-  bundleUrl: string;
-  props: Record<string, any>;
-  context: Record<string, any>;
-  componentName: string;
-}
+
 
 /**
  * ComponentRenderer - Handles server-side rendering and client-side hydration
@@ -55,7 +48,6 @@ export class ComponentRenderer {
   private componentRegistry: ComponentRegistry;
   private renderCache: Map<string, ComponentRenderResult> = new Map();
   private bundleCache: Map<string, string> = new Map();
-
   constructor(componentRegistry: ComponentRegistry) {
     this.componentRegistry = componentRegistry;
   }
@@ -134,85 +126,9 @@ export class ComponentRenderer {
     }
   }
 
-  /**
-   * Generate hydration script for client-side rendering
-   */
-  generateHydrationScript(renderResult: ComponentRenderResult): string {
-    const script: HydrationScript = {
-      bundleUrl: renderResult.bundleUrl,
-      props: renderResult.props,
-      context: renderResult.context,
-      componentName: renderResult.context.componentId
-    };
 
-    return `
-      <script type="module">
-        window.IXP_HYDRATION_DATA = window.IXP_HYDRATION_DATA || {};
-        window.IXP_HYDRATION_DATA['${renderResult.context.componentId}'] = ${JSON.stringify(script)};
-        
-        // Load and hydrate component
-        import('${renderResult.bundleUrl}').then(module => {
-          const Component = module.default || module;
-          const container = document.getElementById('ixp-component-${renderResult.context.componentId}');
-          
-          if (container && Component) {
-            // Initialize IXP SDK context
-            if (window.IXP && window.IXP.initialize) {
-              window.IXP.initialize(${JSON.stringify(renderResult.context)});
-            }
-            
-            // Render component based on framework
-            ${this.generateFrameworkHydration(renderResult)}
-          }
-        }).catch(error => {
-          console.error('Failed to load component:', error);
-          const container = document.getElementById('ixp-component-${renderResult.context.componentId}');
-          if (container) {
-            container.innerHTML = '<div class="ixp-error">Component failed to load</div>';
-          }
-        });
-      </script>
-    `;
-  }
 
-  /**
-   * Generate complete HTML page with component
-   */
-  generatePage(renderResult: ComponentRenderResult, options: { title?: string; meta?: Record<string, string> } = {}): string {
-    const { title = 'IXP Component', meta = {} } = options;
-    
-    const metaTags = Object.entries(meta)
-      .map(([name, content]) => `<meta name="${name}" content="${content}">`) 
-      .join('\n    ');
 
-    return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title}</title>
-    ${metaTags}
-    ${renderResult.css ? `<style>${renderResult.css}</style>` : ''}
-    <script src="/ixp-sdk.js"></script>
-    <script>
-      // Preload component bundle for faster rendering
-      const preloadLink = document.createElement('link');
-      preloadLink.rel = 'preload';
-      preloadLink.as = 'script';
-      preloadLink.href = '${renderResult.bundleUrl}';
-      document.head.appendChild(preloadLink);
-    </script>
-</head>
-<body>
-    <div id="ixp-app">
-        ${renderResult.html}
-    </div>
-    ${this.generateHydrationScript(renderResult)}
-</body>
-</html>
-    `.trim();
-  }
 
   /**
    * Validate component props against schema
@@ -303,41 +219,40 @@ export class ComponentRenderer {
     
     if (!component) return '';
 
-    switch (component.framework) {
-      case 'react':
-        return `
-          // React hydration
-          if (window.React && window.ReactDOM) {
-            const element = window.React.createElement(Component, ${JSON.stringify(renderResult.props)});
-            if (container.innerHTML.trim()) {
-              window.ReactDOM.hydrate(element, container);
-            } else {
-              window.ReactDOM.render(element, container);
-            }
-          }
-        `;
-      
-      case 'vue':
-        return `
-          // Vue hydration
-          if (window.Vue) {
-            const app = window.Vue.createApp({
-              render() {
-                return window.Vue.h(Component, ${JSON.stringify(renderResult.props)});
-              }
-            });
-            app.mount(container);
-          }
-        `;
-      
-      default: // vanilla
-        return `
-          // Vanilla JS hydration
-          if (typeof Component === 'function') {
-            Component(container, ${JSON.stringify(renderResult.props)}, ${JSON.stringify(renderResult.context)});
-          }
-        `;
+    const propsJson = JSON.stringify(renderResult.props);
+    const contextJson = JSON.stringify(renderResult.context);
+    const remoteUrl = `/ixp/component/${component.name}`;
+
+    // Use the built React renderer for client-side rendering
+    if (component.framework === 'react') {
+      return `
+        import { ReactRenderer } from '/ixp/templates/renderer/index.js';
+        
+        // Initialize React renderer with remote component loading
+        const renderer = new ReactRenderer();
+        renderer.render({
+          container: 'ixp-component-${renderResult.context.componentId}',
+          remoteUrl: '${remoteUrl}',
+          componentName: '${component.name}',
+          props: ${propsJson},
+          context: ${contextJson}
+        });
+      `;
     }
+    
+    // Fallback for other frameworks
+    return `
+      import { renderRemoteComponent } from '/ixp/templates/vanilla-remote-app';
+      
+      // Initialize remote component with framework: ${component.framework}
+      renderRemoteComponent(
+        'ixp-component-${renderResult.context.componentId}',
+        '${remoteUrl}',
+        '${component.name}',
+        ${propsJson},
+        ${contextJson}
+      );
+    `;
   }
 
   /**
