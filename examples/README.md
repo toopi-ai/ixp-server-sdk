@@ -38,6 +38,17 @@ This directory contains practical examples demonstrating how to use the IXP Serv
 **Run:** `npx tsx examples/react-components-server.ts`  
 **Port:** 3002
 
+### 4. registry-example.ts
+**Menu and intent registry functionality demonstration**
+- Menu system with hierarchical navigation
+- Intent registry with dynamic registration
+- Component mapping and resolution
+- Interactive menu components
+- Registry management endpoints
+
+**Run:** `npx tsx examples/registry-example.ts`  
+**Port:** 3003
+
 ### 4. vue-components-server.ts
 **Vue.js-optimized server**
 - Vue-specific component definitions
@@ -84,6 +95,84 @@ This directory contains practical examples demonstrating how to use the IXP Serv
         }
       }'
    ```
+
+## Running Examples
+
+To run any example:
+
+```bash
+npx tsx examples/[example-name].ts
+```
+
+Or compile and run:
+
+```bash
+npm run build
+node dist/examples/[example-name].js
+```
+
+## Registry System
+
+The IXP Server now includes a comprehensive registry system for managing intents and menu items:
+
+### Intent Registry Methods
+
+```typescript
+// Register a single intent with default parameters
+server.registerIntent({
+  name: 'search-products',
+  description: 'Search for products',
+  category: 'ecommerce',
+  featured: true,
+  parameters: { query: { type: 'string', required: true } }
+});
+
+// Register multiple intents at once
+server.registerIntents([
+  { name: 'intent1', description: 'First intent' },
+  { name: 'intent2', description: 'Second intent' }
+]);
+
+// Get registered intents
+const allIntents = server.getRegisteredIntents();
+const featuredIntents = server.getFeaturedIntents();
+const categoryIntents = server.getIntentsByCategory('ecommerce');
+```
+
+### Menu Registry Methods
+
+```typescript
+// Register menu items for a category
+server.registerMenuCategory('main-nav', [
+  { id: 'home', label: 'Home', icon: 'house' },
+  { id: 'products', label: 'Products', icon: 'box' }
+]);
+
+// Register menu items for specific intents
+server.registerMenuItems('intent-name', [
+  { id: 'action1', label: 'Quick Action', action: 'execute' }
+]);
+
+// Get menu information
+const categories = server.getMenuCategories();
+const navItems = server.getMenuItems('main-nav');
+const allMenus = server.getAllMenuItems();
+```
+
+### Registry Initialization
+
+```typescript
+// Initialize with default configuration
+server.initializeRegistry({
+  defaultIntents: [
+    { name: 'welcome', description: 'Welcome users', category: 'onboarding' }
+  ],
+  defaultMenuItems: {
+    'quick-actions': [{ id: 'search', label: 'Search' }]
+  },
+  autoRegisterComponents: true
+});
+```
 
 ## Example Comparison
 

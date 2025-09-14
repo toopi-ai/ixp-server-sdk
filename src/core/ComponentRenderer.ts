@@ -286,4 +286,53 @@ export class ComponentRenderer {
       bundleCache: this.bundleCache.size
     };
   }
+
+  /**
+   * Generate a complete HTML page with the rendered component
+   * @param renderResult The component render result
+   * @param pageOptions Optional page configuration
+   * @returns Complete HTML page string
+   */
+  generatePage(renderResult: ComponentRenderResult, pageOptions?: {
+    title?: string;
+    meta?: Record<string, string>;
+    additionalCSS?: string;
+    additionalJS?: string;
+  }): string {
+    const title = pageOptions?.title || 'IXP Component';
+    const metaTags = pageOptions?.meta ? 
+      Object.entries(pageOptions.meta)
+        .map(([name, content]) => `<meta name="${name}" content="${content}">`)
+        .join('\n    ') : '';
+    
+    const additionalCSS = pageOptions?.additionalCSS || '';
+    const additionalJS = pageOptions?.additionalJS || '';
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    ${metaTags}
+    <style>
+      ${renderResult.css || ''}
+      ${additionalCSS}
+    </style>
+</head>
+<body>
+    <div id="ixp-component-root">
+      ${renderResult.html}
+    </div>
+    
+    <script>
+      window.IXP_CONTEXT = ${JSON.stringify(renderResult.context)};
+      window.IXP_PROPS = ${JSON.stringify(renderResult.props)};
+    </script>
+    
+    ${renderResult.bundleUrl ? `<script src="${renderResult.bundleUrl}"></script>` : ''}
+    ${additionalJS ? `<script>${additionalJS}</script>` : ''}
+</body>
+</html>`;
+  }
 }

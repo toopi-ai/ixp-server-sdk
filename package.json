@@ -1,6 +1,6 @@
 {
   "name": "ixp-server",
-  "version": "1.1.1",
+  "version": "0.1.1-alpha",
   "description": "A comprehensive SDK for building Intent Exchange Protocol (IXP) servers with ease",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

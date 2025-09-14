@@ -1,5 +1,11 @@
 .github
 .husky
+/examples/*.js
+/examples/*/*.js
+
+/src/*.js
+/src/**/*.js
+/src/**/*.map
 /examples-dist/
 /node_modules/
 /*/node_modules/

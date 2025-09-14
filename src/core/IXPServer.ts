@@ -10,6 +10,7 @@ import type {
   IXPPlugin,
   IXPMiddleware,
   IntentRequest,
+  IntentDefinition,
   DataProvider,
   CrawlerContentOptions,
   HealthCheckResult,
@@ -42,12 +43,14 @@ export class IXPServer implements IXPServerInstance {
   private logger: Logger;
   private server?: any;
   private isInitialized = false;
+  private menuRegistry: Map<string, any[]> = new Map();
 
   constructor(config: IXPServerConfig = {}) {
     this.config = this.normalizeConfig(config);
     this.app = express.Router();
     this.logger = new Logger(this.config.logging);
     this.metricsService = new MetricsService(this.config.metrics);
+    this.menuRegistry = new Map();
     
     // Initialize registries
     this.intentRegistry = new IntentRegistry(this.config.intents);
@@ -221,9 +224,10 @@ export class IXPServer implements IXPServerInstance {
           timestamp: new Date().toISOString()
         });
       } catch (error) {
-        next(error);
-      }
-    });
+         next(error);
+         return;
+       }
+     });
 
     // GET /ixp/components - Component Registry
     this.app.get('/components', async (req: Request, res: Response, next: NextFunction) => {
@@ -235,9 +239,10 @@ export class IXPServer implements IXPServerInstance {
           timestamp: new Date().toISOString()
         });
       } catch (error) {
-        next(error);
-      }
-    });
+         next(error);
+         return;
+       }
+     });
 
     // GET /ixp/theme - Theme Configuration
     this.app.get('/theme', async (req: Request, res: Response, next: NextFunction) => {
@@ -400,9 +405,10 @@ export class IXPServer implements IXPServerInstance {
           timestamp: new Date().toISOString()
         });
       } catch (error) {
-        next(error);
-      }
-    });
+         next(error);
+         return;
+       }
+     });
 
     // POST /ixp/render - Component Resolution (JSON response)
     this.app.post('/render', async (req: Request, res: Response, next: NextFunction) => {
@@ -429,6 +435,7 @@ export class IXPServer implements IXPServerInstance {
         res.json(result);
       } catch (error) {
         next(error);
+        return;
       }
     });
 
@@ -445,6 +452,7 @@ export class IXPServer implements IXPServerInstance {
         res.sendFile(sdkPath);
       } catch (error) {
         next(error);
+        return;
       }
     });
 
@@ -459,6 +467,8 @@ export class IXPServer implements IXPServerInstance {
             components: '/ixp/components',
             render: '/ixp/render',
             sdk: '/ixp/sdk',
+            menu: '/ixp/menu',
+            init: '/ixp/init',
             health: '/ixp/health',
             metrics: this.config.metrics?.endpoint || '/ixp/metrics'
           },
@@ -473,10 +483,81 @@ export class IXPServer implements IXPServerInstance {
         res.json(config);
       } catch (error) {
         next(error);
+        return;
       }
     });
 
   
+
+    // GET /ixp/menu - Get menus with intents
+    this.app.get('/ixp/menu', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        // Get all intents with their menu items
+        const intents = this.intentRegistry.getAll();
+        const menusData = intents
+          .filter(intent => intent.parameters?.properties?.menuItems?.default && intent.parameters.properties.menuItems.default.length > 0)
+          .map(intent => ({
+            intentName: intent.name,
+            description: intent.description,
+            menuItems: intent.parameters.properties.menuItems.default
+          }));
+        
+        res.json({
+          menus: menusData,
+          total: menusData.length
+        });
+        return;
+      } catch (error) {
+        next(error);
+        return;
+      }
+    });
+
+
+
+    // GET /ixp/init - Get list of intents for chat's first page
+    this.app.get('/ixp/init', async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { featured, limit } = req.query;
+        
+        let intents = this.intentRegistry.getAll();
+        
+        // Filter for featured intents if requested (stored in parameters properties)
+          if (featured === 'true') {
+            intents = intents.filter(intent => intent.parameters?.properties?.featured?.default === true);
+          }
+        
+        // Apply limit if specified
+        const limitNum = limit ? parseInt(limit as string) : undefined;
+        if (limitNum && limitNum > 0) {
+          intents = intents.slice(0, limitNum);
+        }
+        
+        // Format intents for initial chat page
+         const initData = intents.map(intent => ({
+            name: intent.name,
+            description: intent.description,
+            category: intent.parameters?.properties?.category?.default,
+            featured: intent.parameters?.properties?.featured?.default || false,
+            menuItems: intent.parameters?.properties?.menuItems?.default || [],
+            icon: intent.parameters?.properties?.icon?.default,
+            quickActions: intent.parameters?.properties?.quickActions?.default || []
+          }));
+        
+        res.json({
+           intents: initData,
+           total: initData.length,
+           featured: featured === 'true',
+           timestamp: new Date().toISOString()
+         });
+         return;
+      } catch (error) {
+        next(error);
+        return;
+      }
+    });
+
+
 
     // GET /ixp/crawler_content - Crawler Content
     this.app.get('/crawler_content', async (req: Request, res: Response, next: NextFunction) => {
@@ -555,6 +636,7 @@ export class IXPServer implements IXPServerInstance {
           res.json(metrics);
         } catch (error) {
           next(error);
+          return;
         }
       });
     }
@@ -1165,6 +1247,284 @@ export class IXPServer implements IXPServerInstance {
     withRateLimit: number;
   } {
     return this.crawlerDataSourceRegistry.getStats();
+  }
+
+  /**
+   * Register an intent with default parameters for initialization
+   * @param intent Intent configuration object
+   */
+  registerIntent(intent: {
+    name: string;
+    description?: string;
+    category?: string;
+    featured?: boolean;
+    icon?: string;
+    parameters?: Record<string, any>;
+    component?: string;
+    version?: string;
+  }): void {
+    try {
+      const intentConfig: IntentDefinition = {
+        name: intent.name,
+        description: intent.description || '',
+        parameters: {
+          type: 'object' as const,
+          properties: {
+            category: { type: 'string', default: intent.category || 'general' },
+            featured: { type: 'boolean', default: intent.featured || false },
+            icon: { type: 'string', default: intent.icon || 'default' },
+            ...intent.parameters
+          }
+        },
+        component: intent.component || 'default',
+        version: intent.version || '1.0.0'
+      };
+      
+      this.intentRegistry.add(intentConfig);
+      this.logger.info(`Intent '${intent.name}' registered successfully`);
+    } catch (error) {
+      this.logger.error(`Failed to register intent '${intent.name}':`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register menu items for an intent
+   * @param intentName Name of the intent
+   * @param menuItems Array of menu items
+   */
+  registerMenuItems(intentName: string, menuItems: Array<{
+    id: string;
+    label: string;
+    description?: string;
+    icon?: string;
+    action?: string;
+    parameters?: Record<string, any>;
+  }>): void {
+    try {
+      const intent = this.intentRegistry.get(intentName);
+      if (!intent) {
+        throw new Error(`Intent '${intentName}' not found. Please register the intent first.`);
+      }
+      
+      const updatedIntent = {
+        ...intent,
+        parameters: {
+          ...intent.parameters,
+          properties: {
+            ...intent.parameters.properties,
+            menuItems: { type: 'array', default: menuItems }
+          }
+        }
+      };
+      
+      this.intentRegistry.add(updatedIntent);
+      this.logger.info(`Menu items registered for intent '${intentName}'`);
+    } catch (error) {
+      this.logger.error(`Failed to register menu items for intent '${intentName}':`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register multiple intents at once for initialization
+   * @param intents Array of intent configurations
+   */
+  registerIntents(intents: Array<{
+    name: string;
+    description?: string;
+    category?: string;
+    featured?: boolean;
+    icon?: string;
+    menuItems?: Array<any>;
+    quickActions?: Array<any>;
+    parameters?: Record<string, any>;
+    component?: string;
+    version?: string;
+  }>): void {
+    const results = [];
+    
+    for (const intentData of intents) {
+      try {
+        // Register the intent
+         this.registerIntent({
+           name: intentData.name,
+           description: intentData.description || '',
+           category: intentData.category || 'general',
+           featured: intentData.featured || false,
+           icon: intentData.icon || 'default',
+           parameters: {
+             quickActions: { type: 'array', default: intentData.quickActions || [] },
+             ...intentData.parameters
+           },
+           component: intentData.component || 'default',
+           version: intentData.version || '1.0.0'
+         });
+        
+        // Register menu items if provided
+        if (intentData.menuItems && intentData.menuItems.length > 0) {
+          this.registerMenuItems(intentData.name, intentData.menuItems);
+        }
+        
+        results.push({
+          success: true,
+          intent: intentData.name,
+          message: `Intent '${intentData.name}' registered successfully`
+        });
+      } catch (error: any) {
+        results.push({
+          error: `Failed to register intent '${intentData.name}': ${error?.message || 'Unknown error'}`,
+          intent: intentData.name
+        });
+      }
+    }
+    
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => r.error).length;
+    
+    this.logger.info(`Batch intent registration completed: ${successful} successful, ${failed} failed`);
+    
+    if (failed > 0) {
+      const errors = results.filter(r => r.error).map(r => r.error);
+      throw new Error(`Some intents failed to register: ${errors.join(', ')}`);
+    }
+  }
+
+  /**
+   * Get all registered intents
+   */
+  getRegisteredIntents(): Array<any> {
+    return this.intentRegistry.getAll();
+  }
+
+  /**
+   * Get intents filtered by category
+   */
+  getIntentsByCategory(category: string): Array<any> {
+    return this.intentRegistry.getAll().filter(intent => {
+      const categoryParam = intent.parameters?.properties?.category;
+      return categoryParam?.default === category;
+    });
+  }
+
+  /**
+   * Get featured intents
+   */
+  getFeaturedIntents(): Array<any> {
+    return this.intentRegistry.getAll().filter(intent => {
+      const featuredParam = intent.parameters?.properties?.featured;
+      return featuredParam?.default === true;
+    });
+  }
+
+  /**
+   * Remove an intent from the registry
+   */
+  unregisterIntent(intentName: string): boolean {
+    try {
+      const removed = this.intentRegistry.remove(intentName);
+      if (removed) {
+        this.logger.info(`Intent '${intentName}' unregistered successfully`);
+      } else {
+        this.logger.warn(`Intent '${intentName}' not found for removal`);
+      }
+      return removed;
+    } catch (error) {
+      this.logger.error(`Failed to unregister intent '${intentName}':`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register menu category items (separate from intent menu items)
+   * @param category Menu category name
+   * @param items Array of menu items
+   */
+  registerMenuCategory(category: string, items: any[]): void {
+    try {
+      if (!this.menuRegistry.has(category)) {
+        this.menuRegistry.set(category, []);
+      }
+      const existingItems = this.menuRegistry.get(category) || [];
+      this.menuRegistry.set(category, [...existingItems, ...items]);
+      this.logger.info(`Registered ${items.length} menu items for category '${category}'`);
+    } catch (error) {
+      this.logger.error(`Failed to register menu items for category '${category}':`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get menu items for a specific category
+   * @param category Menu category name
+   * @returns Array of menu items
+   */
+  getMenuItems(category: string): any[] {
+    return this.menuRegistry.get(category) || [];
+  }
+
+  /**
+   * Get all menu categories
+   * @returns Array of category names
+   */
+  getMenuCategories(): string[] {
+    return Array.from(this.menuRegistry.keys());
+  }
+
+  /**
+   * Get all menu items across all categories
+   * @returns Object with categories as keys and menu items as values
+   */
+  getAllMenuItems(): Record<string, any[]> {
+    const result: Record<string, any[]> = {};
+    for (const [category, items] of this.menuRegistry.entries()) {
+      result[category] = items;
+    }
+    return result;
+  }
+
+  /**
+   * Clear menu items for a specific category
+   * @param category Menu category name
+   */
+  clearMenuCategory(category: string): void {
+    this.menuRegistry.delete(category);
+    this.logger.info(`Cleared menu items for category '${category}'`);
+  }
+
+  /**
+   * Initialize default menu structure and intents
+   * @param config Initialization configuration
+   */
+  initializeRegistry(config: {
+    defaultIntents?: any[];
+    defaultMenuItems?: Record<string, any[]>;
+    autoRegisterComponents?: boolean;
+  } = {}): void {
+    try {
+      // Register default intents
+      if (config.defaultIntents) {
+        this.registerIntents(config.defaultIntents);
+      }
+
+      // Register default menu items
+      if (config.defaultMenuItems) {
+        for (const [category, items] of Object.entries(config.defaultMenuItems)) {
+          this.registerMenuCategory(category, items);
+        }
+      }
+
+      // Auto-register components if enabled
+      if (config.autoRegisterComponents) {
+        // This could scan for components and auto-register them
+        this.logger.info('Auto-registering components...');
+      }
+
+      this.logger.info('Registry initialization completed');
+    } catch (error) {
+      this.logger.error('Failed to initialize registry:', error);
+      throw error;
+    }
   }
 
   /**
