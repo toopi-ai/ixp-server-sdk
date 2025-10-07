@@ -1,11 +1,3 @@
----
-id: cli-reference
-title: CLI Reference
-sidebar_label: CLI Reference
-sidebar_position: 7
-description: Complete command-line interface reference with all available commands and options
----
-
 # CLI Reference
 
 The IXP Server SDK includes a comprehensive command-line interface for project management, development, and deployment.

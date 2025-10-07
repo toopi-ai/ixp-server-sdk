@@ -1,11 +1,3 @@
----
-id: troubleshooting
-title: Troubleshooting Guide
-sidebar_label: Troubleshooting
-sidebar_position: 9
-description: Common issues and solutions when working with the IXP Server SDK
----
-
 # Troubleshooting Guide
 
 This guide helps you resolve common issues when working with the IXP Server SDK.

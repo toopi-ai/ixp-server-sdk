@@ -1,11 +1,3 @@
----
-id: plugins
-title: Plugins
-sidebar_label: Plugins
-sidebar_position: 5
-description: Explore built-in plugins and learn how to create custom plugins for your IXP Server
----
-
 # Plugins Guide
 
 Plugins extend the functionality of your IXP Server with additional features like API documentation, health monitoring, metrics collection, and more.

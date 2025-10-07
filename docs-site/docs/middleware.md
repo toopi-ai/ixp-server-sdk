@@ -1,11 +1,3 @@
----
-id: middleware
-title: Middleware
-sidebar_label: Middleware
-sidebar_position: 4
-description: Learn about built-in middleware and how to create custom middleware for your IXP Server
----
-
 # Middleware Guide
 
 Middleware in IXP Server provides a powerful way to process requests and responses in a pipeline fashion.

@@ -11,35 +11,32 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Intent-Driven Architecture',
+    title: 'Easy to Use',
     Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
     description: (
       <>
-        Build applications that understand user intent and dynamically resolve
-        to the right components. Define intents with parameters and let the SDK
-        handle the routing and component resolution.
+        Docusaurus was designed from the ground up to be easily installed and
+        used to get your website up and running quickly.
       </>
     ),
   },
   {
-    title: 'Component Federation',
+    title: 'Focus on What Matters',
     Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
     description: (
       <>
-        Share React components across applications seamlessly. Load remote
-        components with built-in security, validation, and performance
-        optimization. Support for multiple frameworks and deployment strategies.
+        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
+        ahead and move your docs into the <code>docs</code> directory.
       </>
     ),
   },
   {
-    title: 'Extensible & Secure',
+    title: 'Powered by React',
     Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
     description: (
       <>
-        Extend functionality with middleware and plugins. Built-in security
-        policies, rate limiting, CORS handling, and component sandboxing.
-        Production-ready with monitoring, metrics, and health checks.
+        Extend or customize your website layout by reusing React. Docusaurus can
+        be extended while reusing the same header and footer.
       </>
     ),
   },

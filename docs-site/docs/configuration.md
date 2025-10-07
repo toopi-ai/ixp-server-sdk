@@ -1,11 +1,3 @@
----
-id: configuration
-title: Configuration Guide
-sidebar_label: Configuration
-sidebar_position: 3
-description: Complete guide to configuring your IXP Server with all available options
----
-
 # Configuration Guide
 
 Comprehensive guide to configuring your IXP Server.

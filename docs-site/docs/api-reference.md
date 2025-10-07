@@ -1,11 +1,3 @@
----
-id: api-reference
-title: API Reference
-sidebar_label: API Reference
-sidebar_position: 6
-description: Complete API documentation for all classes, functions, and types in the IXP Server SDK
----
-
 # API Reference
 
 Complete API documentation for the IXP Server SDK.

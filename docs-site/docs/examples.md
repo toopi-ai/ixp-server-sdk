@@ -1,11 +1,3 @@
----
-id: examples
-title: Examples
-sidebar_label: Examples
-sidebar_position: 8
-description: Comprehensive examples and usage patterns for the IXP Server SDK
----
-
 # Examples
 
 This guide provides comprehensive examples of using the IXP Server SDK in various scenarios.

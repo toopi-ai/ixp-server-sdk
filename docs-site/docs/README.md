@@ -19,7 +19,9 @@ Welcome to the Intent Exchange Protocol (IXP) Server SDK documentation. This SDK
 - **[Plugins](./plugins.md)** - Available plugins and plugin development
 - **[CLI Reference](./cli-reference.md)** - Command-line interface documentation
 - **[Examples](./examples.md)** - Usage examples and patterns
-- **[Troubleshooting](./troubleshooting.md)** - Common issues and solutions
+- **[Theming](./theming.md)** - Theme system and customization
+- **[Advanced Features](./advanced-features.md)** - Advanced usage patterns
+- **[Migration Guide](./migration-guide.md)** - Upgrading between versions
 
 ## 🚀 Quick Start
 

@@ -15,7 +15,7 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 const sidebars: SidebarsConfig = {
   // IXP Server SDK Documentation Sidebar
   tutorialSidebar: [
-    'intro',
+    'README',
     {
       type: 'category',
       label: 'Getting Started',

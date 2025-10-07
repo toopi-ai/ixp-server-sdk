@@ -21,13 +21,7 @@ function HomepageHeader() {
           <Link
             className="button button--secondary button--lg"
             to="/docs/intro">
-            Get Started 🚀
-          </Link>
-          <Link
-            className="button button--outline button--secondary button--lg"
-            to="/docs/examples"
-            style={{marginLeft: '1rem'}}>
-            View Examples 📚
+            Docusaurus Tutorial - 5min ⏱️
           </Link>
         </div>
       </div>
@@ -39,8 +33,8 @@ export default function Home(): ReactNode {
   const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`${siteConfig.title} - Intent-Driven Application Framework`}
-      description="Build dynamic, intent-driven applications with the IXP Server SDK. Seamless component sharing and intent resolution across applications.">
+      title={`Hello from ${siteConfig.title}`}
+      description="Description will go into a meta tag in <head />">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
